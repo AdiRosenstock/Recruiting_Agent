@@ -43,6 +43,10 @@ class Settings(BaseSettings):
     anthropic_api_key: str | None = None
     anthropic_model: str = "claude-sonnet-5"
 
+    # No real provider exists yet (see services/search) -- "stub" is the only valid value until
+    # Phase 3, when a real key (Brave/Bing/SerpAPI) gets added here the same way the LLM keys are.
+    search_provider: Literal["stub"] = "stub"
+
     @property
     def cors_origin_list(self) -> list[str]:
         return [origin.strip() for origin in self.cors_origins.split(",") if origin.strip()]
