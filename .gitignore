@@ -1,0 +1,34 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+.venv/
+venv/
+.mypy_cache/
+.ruff_cache/
+.pytest_cache/
+htmlcov/
+.coverage
+
+# Env
+.env
+.env.*
+!.env.example
+
+# Data
+backend/data/resumes/*
+!backend/data/resumes/.gitkeep
+
+# Node / frontend
+node_modules/
+.next/
+out/
+
+# OS
+.DS_Store
+
+# IDE
+.vscode/
+.idea/
+.claude/
