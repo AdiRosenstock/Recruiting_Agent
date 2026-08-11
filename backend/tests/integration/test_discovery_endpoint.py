@@ -111,13 +111,14 @@ def test_discovery_run_upserts_companies_jobs_and_applications(
     assert result["sources_run"] == ["fake_source"]
     assert result["jobs_upserted"] == 1
     assert result["companies_upserted"] == 1
+    assert result["jobs_scored"] == 1  # scored automatically -- no manual "Score" click needed
     assert result["warnings"] == []
 
     listed = client.get(f"/api/v1/search-profiles/{profile['id']}/jobs").json()
     assert len(listed) == 1
     assert listed[0]["job"]["title"] == "Fake Role"
     assert listed[0]["company"]["name"] == "FakeCo"
-    assert listed[0]["fit_score"] is None  # discovered, not yet scored
+    assert listed[0]["fit_score"] is not None
 
 
 def test_discovery_run_is_idempotent(client: TestClient, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -130,13 +131,48 @@ def test_discovery_run_is_idempotent(client: TestClient, monkeypatch: pytest.Mon
     candidate_id = _create_candidate(client)
     profile = _create_profile(client, candidate_id)
 
-    client.post("/api/v1/discovery/run", json={"profile_id": profile["id"]})
+    first = client.post("/api/v1/discovery/run", json={"profile_id": profile["id"]}).json()
     second = client.post("/api/v1/discovery/run", json={"profile_id": profile["id"]}).json()
 
+    assert first["jobs_scored"] == 1
     assert second["jobs_upserted"] == 0
     assert second["companies_upserted"] == 0
+    assert second["jobs_scored"] == 0  # already scored -- never silently re-scored on a re-run
     listed = client.get(f"/api/v1/search-profiles/{profile['id']}/jobs").json()
     assert len(listed) == 1  # no duplicate application row
+
+
+def test_discovery_run_does_not_overwrite_a_score_edited_since(
+    client: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A job manually re-scored (e.g. via POST /jobs/{id}/score after a weights change) must
+    keep that score -- a later discovery re-run (which only fills in what's missing) must not
+    clobber it with a fresh automatic one."""
+    monkeypatch.setitem(
+        discovery_runner.JOB_BOARD_ADAPTERS_BY_PROFILE_KEY,
+        "startup_outreach",
+        [_FakeJobBoardSource],
+    )
+    _clear_startup_outreach_company_adapters(monkeypatch)
+    candidate_id = _create_candidate(client)
+    profile = _create_profile(client, candidate_id)
+
+    client.post("/api/v1/discovery/run", json={"profile_id": profile["id"]})
+    listed = client.get(f"/api/v1/search-profiles/{profile['id']}/jobs").json()
+    job_id = listed[0]["job"]["id"]
+    original_score_id = listed[0]["fit_score"]["id"]
+
+    rescored = client.post(
+        f"/api/v1/jobs/{job_id}/score",
+        json={"candidate_id": candidate_id, "profile_id": profile["id"]},
+    ).json()
+    assert rescored["id"] != original_score_id  # a genuinely new row, human-triggered
+
+    again = client.post("/api/v1/discovery/run", json={"profile_id": profile["id"]}).json()
+    assert again["jobs_scored"] == 0
+
+    listed_after = client.get(f"/api/v1/search-profiles/{profile['id']}/jobs").json()
+    assert listed_after[0]["fit_score"]["id"] == rescored["id"]  # untouched by the re-run
 
 
 def test_discovery_run_404s_for_unknown_profile(client: TestClient) -> None:

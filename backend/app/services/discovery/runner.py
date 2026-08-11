@@ -8,14 +8,17 @@ from dataclasses import dataclass, field
 from sqlalchemy.orm import Session
 
 from app.core.logging import log_agent_decision
+from app.schemas.candidate import CandidateProfile
 from app.schemas.discovery import DiscoveryQuery
 from app.schemas.search_profile import SearchProfileRead
 from app.services.applications import get_or_create_application
+from app.services.candidate_reader import get_candidate_profile
 from app.services.discovery.base import CompanySource, JobBoardSource
 from app.services.discovery.github_new_grad_list import GitHubNewGradListSource
 from app.services.discovery.hn_who_is_hiring import HNWhoIsHiringSource
 from app.services.discovery.upsert import CompanyJobUpsertService
 from app.services.discovery.yc_directory import YCDirectorySource
+from app.services.scoring.service import score_if_unscored
 
 # profile_key -> adapters configured for it, split by discovery pattern (see
 # services/discovery/base.py). A profile can have both kinds at once.
@@ -34,6 +37,7 @@ class DiscoveryRunCounters:
     warnings: list[str] = field(default_factory=list)
     companies_created: int = 0
     jobs_created: int = 0
+    jobs_scored: int = 0
 
 
 def run_discovery_for_profile(db: Session, profile: SearchProfileRead) -> DiscoveryRunCounters:
@@ -47,12 +51,23 @@ def run_discovery_for_profile(db: Session, profile: SearchProfileRead) -> Discov
     upsert_service = CompanyJobUpsertService(db)
     counters = DiscoveryRunCounters()
 
+    # Fetched once per run, not once per job -- every job found this run scores against the
+    # same candidate profile. `None` (no resume uploaded yet) is a valid, expected state:
+    # discovery still has to work before that, just without scores until it does.
+    candidate_profile = get_candidate_profile(db, profile.candidate_id)
+    if candidate_profile is None:
+        counters.warnings.append(
+            "No candidate profile on file yet -- jobs were discovered but not scored. "
+            "Upload a resume, then re-run discovery or score jobs individually."
+        )
+
     _run_job_board_adapters(
         adapter_classes=JOB_BOARD_ADAPTERS_BY_PROFILE_KEY.get(profile.profile_key, []),
         query=query,
         upsert_service=upsert_service,
         db=db,
         profile=profile,
+        candidate_profile=candidate_profile,
         counters=counters,
     )
     _run_company_adapters(
@@ -61,6 +76,7 @@ def run_discovery_for_profile(db: Session, profile: SearchProfileRead) -> Discov
         upsert_service=upsert_service,
         db=db,
         profile=profile,
+        candidate_profile=candidate_profile,
         counters=counters,
     )
 
@@ -75,6 +91,7 @@ def run_discovery_for_profile(db: Session, profile: SearchProfileRead) -> Discov
         sources_run=counters.sources_run,
         companies_created=counters.companies_created,
         jobs_created=counters.jobs_created,
+        jobs_scored=counters.jobs_scored,
         warnings_count=len(counters.warnings),
     )
     return counters
@@ -87,6 +104,7 @@ def _run_job_board_adapters(
     upsert_service: CompanyJobUpsertService,
     db: Session,
     profile: SearchProfileRead,
+    candidate_profile: CandidateProfile | None,
     counters: DiscoveryRunCounters,
 ) -> None:
     for adapter_cls in adapter_classes:
@@ -103,9 +121,18 @@ def _run_job_board_adapters(
             job, job_created, company_created = upsert_service.upsert_job(discovered_job)
             counters.jobs_created += int(job_created)
             counters.companies_created += int(company_created)
-            get_or_create_application(
+            application = get_or_create_application(
                 db, candidate_id=profile.candidate_id, job_id=job.id, profile_id=profile.id
             )
+            if score_if_unscored(
+                db,
+                candidate=candidate_profile,
+                job=job,
+                company=job.company,
+                profile=profile,
+                application=application,
+            ):
+                counters.jobs_scored += 1
 
 
 def _run_company_adapters(
@@ -115,6 +142,7 @@ def _run_company_adapters(
     upsert_service: CompanyJobUpsertService,
     db: Session,
     profile: SearchProfileRead,
+    candidate_profile: CandidateProfile | None,
     counters: DiscoveryRunCounters,
 ) -> None:
     for adapter_cls in adapter_classes:
@@ -140,6 +168,15 @@ def _run_company_adapters(
             for discovered_job in discovered_jobs:
                 job, job_created, _ = upsert_service.upsert_job(discovered_job)
                 counters.jobs_created += int(job_created)
-                get_or_create_application(
+                application = get_or_create_application(
                     db, candidate_id=profile.candidate_id, job_id=job.id, profile_id=profile.id
                 )
+                if score_if_unscored(
+                    db,
+                    candidate=candidate_profile,
+                    job=job,
+                    company=job.company,
+                    profile=profile,
+                    application=application,
+                ):
+                    counters.jobs_scored += 1

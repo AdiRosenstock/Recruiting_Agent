@@ -38,10 +38,12 @@ more certain than it actually is.
   can't be verified is *demoted* to an inference, never silently dropped, never left posing as
   more certain than it is. One evidence-verification function backs both resume skill-claims and
   company research, so the check stays consistent as it evolves.
-- **Deterministic, explainable scoring.** A 7-component weighted fit score with human-readable
-  strengths/gaps -- no LLM ever asked to "just output a number." Found and fixed a real bug in
-  it by actually looking at live data, not just trusting the code: 227 of 389 real scored jobs
-  shared one identical score. Root-caused it to a scoring source with no structured data to
+- **Deterministic, explainable scoring, computed automatically.** A 7-component weighted fit
+  score with human-readable strengths/gaps -- no LLM ever asked to "just output a number," and
+  no manual "Score" click needed either: scoring is wired directly into discovery, so a score is
+  already there the moment a job is found. Found and fixed a real bug in the scorer itself by
+  actually looking at live data, not just trusting the code: 227 of 389 real scored jobs shared
+  one identical score. Root-caused it to a scoring source with no structured data to
   differentiate on, fixed the fallback, and re-verified the fix moved real numbers (17 jobs
   newly hit "strong" tier, up from zero).
 - **A visa-sponsorship detector**, same philosophy: a negation-aware deterministic keyword
@@ -127,7 +129,11 @@ new code path -- see `scripts/seed_profiles.py`.
   source has no structured `technologies` list (e.g. `GitHubNewGradListSource`, which only ever
   captures Company/Role/Location/Link/Date) -- found via live data that a flat neutral score for
   every such job, regardless of what it actually was, was producing a wall of identical overall
-  scores across hundreds of postings.
+  scores across hundreds of postings. `services/scoring/service.py`'s `score_if_unscored` is
+  wired directly into the discovery runner, so every newly discovered job is scored the moment
+  it's found -- no separate step, no per-job "Score" click required to see a result. Never
+  re-scores an application that already has one (a manual re-score isn't silently clobbered by
+  the next discovery run); `POST /jobs/{id}/score` still exists for an explicit re-score.
 - A `SearchProvider` abstraction (`services/search/`) with a real, no-API-key implementation --
   `DuckDuckGoSearchProvider` uses DuckDuckGo's plain HTML results page (the same no-JS endpoint
   it serves browsers with JavaScript disabled). Company Research primarily works directly off a
@@ -244,27 +250,32 @@ curl -s -X POST http://localhost:8000/api/v1/candidates/$CAND_ID/resume \
 # 3. List the profiles to get their ids
 curl -s "http://localhost:8000/api/v1/search-profiles?candidate_id=$CAND_ID"
 
-# 4. Run discovery for a profile (hits the real HN/GitHub sources)
+# 4. Run discovery for a profile (hits the real HN/GitHub sources) -- every newly discovered
+#    job is scored automatically as part of the same run, no separate step and no manual
+#    "Score" click needed; the response says how many
 curl -s -X POST http://localhost:8000/api/v1/discovery/run \
   -H "Content-Type: application/json" -d '{"profile_id": "<profile-id>"}'
 
-# 5. Score a discovered job
+# 5. See every job tracked under a profile, highest score first -- each entry carries the
+#    application_id every later action (research/outreach/status) is keyed off
+curl -s "http://localhost:8000/api/v1/search-profiles/<profile-id>/jobs"
+
+# 6. Optional: re-score one job by hand (e.g. after editing that profile's weights, or a
+#    manually-added job that predates a resume upload)
 curl -s -X POST http://localhost:8000/api/v1/jobs/<job-id>/score \
   -H "Content-Type: application/json" \
   -d "{\"candidate_id\": \"$CAND_ID\", \"profile_id\": \"<profile-id>\"}"
-
-# 6. See every job tracked under a profile, highest score first -- each entry carries the
-#    application_id every later action (research/outreach/status) is keyed off
-curl -s "http://localhost:8000/api/v1/search-profiles/<profile-id>/jobs"
 ```
 
 Companies/jobs can also be added manually: `POST /api/v1/companies`, then `POST
-/api/v1/companies/{id}/jobs`.
+/api/v1/companies/{id}/jobs` -- these aren't scored automatically (there's no discovery run to
+hang the scoring off of), so step 6 is how to score them.
 
-Scoring one job at a time via `/score` (or the dashboard's per-row "Score" button) is fine for
-what you just looked at; after a discovery run adds a few hundred at once,
-`scripts/batch_score.py` scores everything unscored under a profile (or every profile for a
-candidate) in one pass instead of one request per job:
+Discovery scores everything it finds automatically, so there's usually nothing to batch-score.
+`scripts/batch_score.py` covers the cases that aren't automatic: manually-added jobs, jobs
+discovered before a resume was on file (discovery skips scoring, not the whole run, when there's
+no candidate profile yet -- see its response's `warnings`), or re-scoring everything after a
+scoring-logic change:
 
 ```bash
 .venv/bin/python scripts/batch_score.py --candidate-id $CAND_ID
@@ -497,7 +508,9 @@ frontend in a real browser against it with zero console errors.
   and cross-profile job tables; a deterministic visa-sponsorship signal (see above); a
   `technical_match` scoring fallback for sources with no structured tech list, found live after
   batch-scoring produced a wall of identical scores for ~227 of 389 real jobs;
-  `scripts/batch_score.py` for scoring hundreds of newly-discovered jobs in one pass.
+  `scripts/batch_score.py` for scoring hundreds of newly-discovered jobs in one pass; automatic
+  scoring wired directly into discovery (`score_if_unscored`) so a fit score is there the moment
+  a job is found, no per-job "Score" click needed.
 
 ## About the Author
 

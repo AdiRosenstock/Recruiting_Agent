@@ -5,20 +5,17 @@ from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_page_fetcher
-from app.core.logging import log_agent_decision
 from app.db.session import get_db
 from app.models.company import Company
-from app.models.fit_score import FitScore
 from app.models.job import Job
 from app.models.search_profile import SearchProfile
-from app.schemas.company import CompanyRead
 from app.schemas.fit_score import FitScoreRead
 from app.schemas.job import JobRead
 from app.schemas.search_profile import SearchProfileRead
 from app.services.applications import get_or_create_application
 from app.services.candidate_reader import get_candidate_profile
 from app.services.research.fetcher import PageFetcher
-from app.services.scoring.scorer import FitScorer
+from app.services.scoring.service import score_and_persist
 from app.services.visa_check import check_job_visa_sponsorship
 
 router = APIRouter(prefix="/api/v1/jobs", tags=["jobs"])
@@ -50,46 +47,20 @@ def score_job(
     if candidate_profile is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Candidate not found")
 
-    result = FitScorer().score(
-        candidate=candidate_profile,
-        job=JobRead.model_validate(job),
-        company=CompanyRead.model_validate(company),
-        profile=SearchProfileRead.model_validate(profile_row),
-    )
-
-    fit_score = FitScore(
-        candidate_id=payload.candidate_id,
-        job_id=job_id,
-        profile_id=payload.profile_id,
-        technical_match=result.technical.score,
-        role_match=result.role.score,
-        ai_data_match=result.ai_data.score,
-        experience_match=result.experience.score,
-        stage_match=result.stage.score,
-        location_match=result.location.score,
-        domain_match=result.domain.score,
-        overall_score=result.overall_score,
-        tier=result.tier,
-        strengths=result.strengths,
-        gaps=result.gaps,
-        weights_version=result.weights_version,
-    )
-    db.add(fit_score)
-    db.flush()
-
-    log_agent_decision(
-        "job_scored",
-        job_id=str(job_id),
-        profile_id=str(payload.profile_id),
-        overall_score=result.overall_score,
-        tier=result.tier,
-        weights_version=result.weights_version,
-    )
-
     application = get_or_create_application(
         db, candidate_id=payload.candidate_id, job_id=job_id, profile_id=payload.profile_id
     )
-    application.fit_score_id = fit_score.id
+    # This endpoint always (re-)scores, unlike discovery's score-if-unscored -- it's how a human
+    # explicitly asks for a fresh score (e.g. after editing weights), so an existing score must
+    # not block it the way it blocks discovery's automatic pass.
+    fit_score = score_and_persist(
+        db,
+        candidate=candidate_profile,
+        job=job,
+        company=company,
+        profile=SearchProfileRead.model_validate(profile_row),
+        application=application,
+    )
 
     db.commit()
     db.refresh(fit_score)

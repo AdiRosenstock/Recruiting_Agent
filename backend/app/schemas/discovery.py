@@ -43,4 +43,5 @@ class DiscoveryRunResult(BaseModel):
     sources_run: list[str]
     companies_upserted: int
     jobs_upserted: int
+    jobs_scored: int
     warnings: list[str] = Field(default_factory=list)

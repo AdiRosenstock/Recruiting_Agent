@@ -85,6 +85,7 @@ export default function DashboardPage() {
   const jobsLoading = activeProfileId !== null && loadedProfileId !== activeProfileId;
 
   const [discoveryBusy, setDiscoveryBusy] = useState(false);
+  const [discoverySummary, setDiscoverySummary] = useState<string | null>(null);
   const [scoringId, setScoringId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -197,10 +198,19 @@ export default function DashboardPage() {
   async function handleRunDiscovery() {
     if (!activeProfileId) return;
     setDiscoveryBusy(true);
+    setDiscoverySummary(null);
     setError(null);
     try {
-      await runDiscovery(activeProfileId);
+      const result = await runDiscovery(activeProfileId);
       setJobs(await getProfileJobs(activeProfileId));
+      // Scoring happens automatically as part of discovery now -- no per-job click needed (see
+      // services/scoring/service.py's score_if_unscored, wired into the discovery runner). This
+      // just confirms that actually happened, since "12 new jobs" alone doesn't say so.
+      setDiscoverySummary(
+        result.jobs_upserted === 0
+          ? "No new jobs found."
+          : `${result.jobs_upserted} new job${result.jobs_upserted === 1 ? "" : "s"} found and scored automatically.`
+      );
     } catch (err) {
       setError(err instanceof Error ? err.message : "Discovery failed.");
     } finally {
@@ -294,7 +304,10 @@ export default function DashboardPage() {
               <button
                 key={p.id}
                 className={`tab ${p.id === activeProfileId ? "active" : ""}`}
-                onClick={() => setActiveProfileId(p.id)}
+                onClick={() => {
+                  setActiveProfileId(p.id);
+                  setDiscoverySummary(null);
+                }}
               >
                 {p.display_name}
               </button>
@@ -340,7 +353,9 @@ export default function DashboardPage() {
           ) : (
             <div className="panel">
               <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 12 }}>
-                <span className="muted">{jobsLoading ? "Loading…" : null}</span>
+                <span className="muted">
+                  {jobsLoading ? "Loading…" : discoverySummary}
+                </span>
                 <button className="primary" onClick={handleRunDiscovery} disabled={discoveryBusy}>
                   {discoveryBusy ? "Running discovery…" : "Run discovery"}
                 </button>

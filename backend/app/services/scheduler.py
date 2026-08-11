@@ -44,6 +44,7 @@ def _run_discovery_for_all_profiles() -> None:
                 sources_run=counters.sources_run,
                 companies_upserted=counters.companies_created,
                 jobs_upserted=counters.jobs_created,
+                jobs_scored=counters.jobs_scored,
                 warning_count=len(counters.warnings),
             )
     finally:

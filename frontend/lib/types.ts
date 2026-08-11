@@ -185,5 +185,6 @@ export interface DiscoveryRunResult {
   sources_run: string[];
   companies_upserted: number;
   jobs_upserted: number;
+  jobs_scored: number;
   warnings: string[];
 }
