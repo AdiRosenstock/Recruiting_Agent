@@ -45,6 +45,15 @@ services:
       - "8000:8000"
     volumes:
       - recruiting_agent_resumes:/app/data/resumes
+    healthcheck:
+      # /healthz only responds once uvicorn is actually serving -- which, per the container's
+      # CMD (`alembic upgrade head && uvicorn ...`), only happens after migrations succeed. No
+      # curl/wget in the slim image; Python's already there.
+      test: ["CMD", "python", "-c", "import urllib.request as u; u.urlopen('http://localhost:8000/healthz', timeout=3)"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 15s
 
   frontend:
     build:
@@ -57,9 +66,16 @@ services:
     container_name: recruiting_agent_frontend
     restart: unless-stopped
     depends_on:
-      - backend
+      backend:
+        condition: service_healthy
     ports:
       - "3000:3000"
+    healthcheck:
+      test: ["CMD", "node", "-e", "require('http').get('http://localhost:3000', r => process.exit(r.statusCode === 200 ? 0 : 1)).on('error', () => process.exit(1))"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
 
 volumes:
   recruiting_agent_pgdata:
