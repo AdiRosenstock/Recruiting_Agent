@@ -28,7 +28,9 @@ def run_research(
 
 
 @router.get("/{company_id}/research", response_model=list[CompanyResearchRead])
-def list_research(company_id: uuid.UUID, db: Session = Depends(get_db)) -> list[CompanyResearchRead]:
+def list_research(
+    company_id: uuid.UUID, db: Session = Depends(get_db)
+) -> list[CompanyResearchRead]:
     if db.get(Company, company_id) is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Company not found")
     rows = (

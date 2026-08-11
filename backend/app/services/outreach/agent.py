@@ -39,7 +39,9 @@ def _build_context_prompt(
     lines.append(f"CANDIDATE: {candidate.full_name}")
     work_experiences = [e for e in candidate.experiences if e.category == "work"][:3]
     for exp in work_experiences:
-        lines.append(f"- {exp.title} at {exp.organization}: {exp.description or exp.evidence_snippet}")
+        lines.append(
+            f"- {exp.title} at {exp.organization}: {exp.description or exp.evidence_snippet}"
+        )
     verified_skills = sorted({s.skill_name for s in candidate.skills if s.verified})
     if verified_skills:
         lines.append(f"Verified skills: {', '.join(verified_skills)}")

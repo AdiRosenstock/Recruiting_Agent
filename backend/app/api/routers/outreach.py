@@ -11,7 +11,9 @@ router = APIRouter(prefix="/api/v1/outreach-messages", tags=["outreach"])
 
 
 @router.get("/{message_id}", response_model=OutreachMessageRead)
-def read_outreach_message(message_id: uuid.UUID, db: Session = Depends(get_db)) -> OutreachMessageRead:
+def read_outreach_message(
+    message_id: uuid.UUID, db: Session = Depends(get_db)
+) -> OutreachMessageRead:
     message = db.get(OutreachMessage, message_id)
     if message is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Message not found")

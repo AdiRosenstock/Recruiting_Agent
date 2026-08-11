@@ -76,6 +76,8 @@ def list_profile_jobs(profile_id: uuid.UUID, db: Session = Depends(get_db)) -> l
         fit_score = db.get(FitScore, application.fit_score_id) if application.fit_score_id else None
         results.append(
             JobWithScore(
+                application_id=application.id,
+                application_status=application.status,
                 job=JobRead.model_validate(job),
                 company=CompanyRead.model_validate(company),
                 fit_score=FitScoreRead.model_validate(fit_score) if fit_score else None,

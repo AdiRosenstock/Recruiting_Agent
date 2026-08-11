@@ -12,7 +12,9 @@ from app.services.contacts import rank_contact_priority
 router = APIRouter(prefix="/api/v1/companies", tags=["contacts"])
 
 
-@router.post("/{company_id}/contacts", response_model=ContactRead, status_code=status.HTTP_201_CREATED)
+@router.post(
+    "/{company_id}/contacts", response_model=ContactRead, status_code=status.HTTP_201_CREATED
+)
 def create_contact(
     company_id: uuid.UUID, payload: ContactCreate, db: Session = Depends(get_db)
 ) -> ContactRead:

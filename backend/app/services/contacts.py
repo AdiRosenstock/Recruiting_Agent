@@ -32,10 +32,16 @@ _LARGER_COMPANY_PRIORITY: list[tuple[str, re.Pattern[str]]] = [
             r"head of engineering|vp\s*of?\s*engineering|director of engineering", re.IGNORECASE
         ),
     ),
-    ("Technical recruiter", re.compile(r"recruiter|talent acquisition|technical sourcer", re.IGNORECASE)),
+    (
+        "Technical recruiter",
+        re.compile(r"recruiter|talent acquisition|technical sourcer", re.IGNORECASE),
+    ),
     (
         "Relevant engineering leader",
-        re.compile(r"engineering lead|staff engineer|principal engineer|eng(?:ineering)? lead", re.IGNORECASE),
+        re.compile(
+            r"engineering lead|staff engineer|principal engineer|eng(?:ineering)? lead",
+            re.IGNORECASE,
+        ),
     ),
     ("Founder", re.compile(r"\bfounder\b|\bceo\b", re.IGNORECASE)),
 ]
@@ -60,4 +66,7 @@ def rank_contact_priority(
                 return rank, f"Matches '{label}' -- a priority contact at a {tier_label} company."
 
     fallback_rank = len(priority_list) + 1
-    return fallback_rank, f"Title didn't match a known priority category for a {tier_label} company."
+    return (
+        fallback_rank,
+        f"Title didn't match a known priority category for a {tier_label} company.",
+    )

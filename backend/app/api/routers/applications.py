@@ -77,7 +77,7 @@ def generate_outreach(
     profile = db.get(SearchProfile, application.profile_id)
     if profile is not None and not profile.outreach_enabled:
         raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail=f"Outreach is not enabled for profile '{profile.profile_key}'.",
         )
 

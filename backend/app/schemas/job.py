@@ -48,8 +48,14 @@ class JobRead(BaseModel):
 
 
 class JobWithScore(BaseModel):
-    """What `GET /profiles/{id}/jobs` returns -- the data the future dashboard renders."""
+    """What `GET /search-profiles/{id}/jobs` returns -- the data the dashboard renders. Includes
+    `application_id`/`application_status` (not just the job/score) because every subsequent
+    action -- generate outreach, mark contacted, add notes -- is keyed off the application, not
+    the job; without this the API would have no way to look an application id up at all.
+    """
 
+    application_id: uuid.UUID
+    application_status: str
     job: JobRead
     company: CompanyRead
     fit_score: FitScoreRead | None

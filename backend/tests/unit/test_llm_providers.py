@@ -95,8 +95,8 @@ def test_anthropic_provider_raises_when_no_tool_use_block() -> None:
             )
 
 
-def test_stub_provider_only_supports_candidate_extraction_schema() -> None:
-    with pytest.raises(LLMProviderError, match="LLMExtractedCandidateData"):
+def test_stub_provider_rejects_unsupported_schemas() -> None:
+    with pytest.raises(LLMProviderError, match="does not support"):
         StubProvider().structured_completion(
             system="sys", prompt="user", response_model=_Dummy, prompt_version="v1"
         )

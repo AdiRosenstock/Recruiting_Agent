@@ -19,7 +19,7 @@ from app.models.source import Source
 from app.schemas.company_research import CompanyResearchRunResult
 from app.services.evidence import verify_snippet
 from app.services.llm.base import LLMProvider
-from app.services.research.fetcher import PageFetchError, PageFetcher
+from app.services.research.fetcher import PageFetcher, PageFetchError
 from app.services.research.llm_researcher import PROMPT_VERSION, LLMCompanyResearcher
 
 logger = get_logger(__name__)

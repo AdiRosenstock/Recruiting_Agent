@@ -1,7 +1,18 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.api.routers import candidates, companies, discovery, health, jobs, search_profiles
+from app.api.routers import (
+    applications,
+    candidates,
+    companies,
+    contacts,
+    discovery,
+    health,
+    jobs,
+    outreach,
+    research,
+    search_profiles,
+)
 from app.config import get_settings
 from app.core.logging import configure_logging
 
@@ -30,6 +41,10 @@ def create_app() -> FastAPI:
     app.include_router(companies.router)
     app.include_router(jobs.router)
     app.include_router(discovery.router)
+    app.include_router(research.router)
+    app.include_router(contacts.router)
+    app.include_router(outreach.router)
+    app.include_router(applications.router)
 
     return app
 

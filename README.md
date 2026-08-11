@@ -6,10 +6,10 @@ configured agents (discovery sources, fit-scoring weights, whether outreach is e
 share one underlying pipeline (Discovery -> Score -> [Research -> Contact -> Outreach, if
 enabled]). Two profiles exist out of the box:
 
-- **`startup_outreach`** -- seed-Series B NYC startups, small teams, outreach enabled (drafted,
-  human-approved, human-sent -- see [Roadmap](#roadmap), outreach generation isn't built yet).
+- **`startup_outreach`** -- seed-Series B NYC startups, small teams, outreach enabled: research,
+  contact identification, and drafted (human-approved, human-sent) outreach messages all run.
 - **`new_grad_2027`** -- a wide net across company sizes for new-grad 2027 roles (including
-  finance/quant-adjacent ones), tracking-only, no outreach.
+  finance/quant-adjacent ones), tracking-only -- research/contacts/outreach never run for it.
 
 Nothing in this system automates LinkedIn (no scraping, no login automation, no auto-sending).
 Outreach is always human-approved and human-sent; see the compliance note in the original spec.
@@ -39,8 +39,30 @@ Outreach is always human-approved and human-sent; see the compliance note in the
   weighted-summed into a 0-100 score with a tier and human-readable strengths/gaps. No LLM call.
   Never hard-rejects for a job asking slightly more experience than the candidate has; a missing
   personal connection is neutral, never scored as a weakness.
-- A `SearchProvider` abstraction (`services/search/`), stubbed for now -- no search API key is
-  wired up yet (that's Phase 3's Company Research Agent).
+- A `SearchProvider` abstraction (`services/search/`), stubbed for now -- research runs directly
+  off a company's own website instead (see below), so this isn't blocking; a real search
+  provider is still useful future work for companies with no known website.
+
+**Phase 3 -- research, contacts, outreach, human-approval workflow:**
+- **Company Research Agent** (`services/research/`): deterministically fetches a company's
+  website (no search API needed -- just the URL already on file), has an LLM split what it
+  finds into FACTS (each verified verbatim against the fetched page, same evidence-check
+  approach as resume parsing) and INFERENCES. A claimed fact that can't be verified is
+  *demoted* to an inference, never dropped and never left posing as more certain than it is.
+  A hit against the shared personal-connection triggers (`app/domain_connections.py` -- the
+  same list the fit scorer uses) is stored as its own inference row.
+- **Contacts** (`services/contacts.py`): manual entry (no LinkedIn scraping -- see Compliance
+  below) with a deterministic priority rank computed from the spec's two priority lists
+  (very-early-stage vs. larger company, by employee count).
+- **Outreach Message Agent** (`services/outreach/`): drafts `linkedin_full` /
+  `linkedin_connection` / `email` variants from real assembled context (candidate background,
+  job, company research, contact), in the "smart college senior" voice from the spec, with a
+  deterministic banned-phrase filter (`services/outreach/banned_phrases.py`) flagging
+  corporate-sounding phrases the spec explicitly rules out. Nothing is ever sent automatically.
+- **Human-approval workflow**: `applications.status` moves through
+  `DISCOVERED -> ... -> REVIEW -> READY_TO_CONTACT -> CONTACTED -> RESPONDED -> ...` entirely
+  via explicit `PATCH /applications/{id}` calls -- an agent only ever *proposes* a transition
+  (e.g. outreach generation bumps a fresh application to `REVIEW`), never sends or finalizes one.
 
 ## Prerequisites
 
@@ -101,12 +123,42 @@ curl -s -X POST http://localhost:8000/api/v1/jobs/<job-id>/score \
   -H "Content-Type: application/json" \
   -d "{\"candidate_id\": \"$CAND_ID\", \"profile_id\": \"<profile-id>\"}"
 
-# 6. See every job tracked under a profile, highest score first
+# 6. See every job tracked under a profile, highest score first -- each entry carries the
+#    application_id every later action (research/outreach/status) is keyed off
 curl -s "http://localhost:8000/api/v1/search-profiles/<profile-id>/jobs"
 ```
 
 Companies/jobs can also be added manually: `POST /api/v1/companies`, then `POST
 /api/v1/companies/{id}/jobs`.
+
+### From a scored job to a drafted, human-reviewed outreach message
+
+```bash
+# 1. Research the company (only works if it has a `website` on file)
+curl -s -X POST http://localhost:8000/api/v1/companies/<company-id>/research/run
+curl -s http://localhost:8000/api/v1/companies/<company-id>/research
+
+# 2. Add a contact -- priority rank/rationale are computed automatically
+curl -s -X POST http://localhost:8000/api/v1/companies/<company-id>/contacts \
+  -H "Content-Type: application/json" \
+  -d '{"name": "Jane Doe", "title": "Co-Founder & CEO", "public_profile_url": "https://linkedin.com/in/janedoe"}'
+
+# 3. Link the contact to the application (from step 6 above)
+curl -s -X PATCH http://localhost:8000/api/v1/applications/<application-id> \
+  -H "Content-Type: application/json" -d '{"contact_id": "<contact-id>"}'
+
+# 4. Generate outreach (only works if the profile has outreach_enabled=true) -- this
+#    auto-advances a fresh application to REVIEW status, it does NOT send anything
+curl -s -X POST http://localhost:8000/api/v1/applications/<application-id>/outreach
+
+# 5. Edit a drafted message by hand if you want to change the wording
+curl -s -X PATCH http://localhost:8000/api/v1/outreach-messages/<message-id> \
+  -H "Content-Type: application/json" -d '{"content": "..."}'
+
+# 6. Approve / mark contacted once you've sent it yourself, manually, outside this app
+curl -s -X PATCH http://localhost:8000/api/v1/applications/<application-id> \
+  -H "Content-Type: application/json" -d '{"status": "CONTACTED"}'
+```
 
 ### LLM provider configuration
 
@@ -176,20 +228,30 @@ docker compose exec db psql -U recruiting_agent -d recruiting_agent -c "CREATE D
   also why `GET /search-profiles/{id}/jobs` reads from `applications`, not `fit_scores` directly
   -- a discovered-but-unscored job still needs to show up, not silently disappear.
 - **LLM calls always return validated Pydantic models**, never free text to parse ad hoc -- see
-  `services/llm/base.py`. Discovery and scoring this phase are entirely LLM-free by design
-  (regex/HTML parsing, weighted arithmetic) -- see the deterministic-vs-LLM table in the Phase 1
-  plan.
-- Full architecture, PostgreSQL schema (including tables for later phases), and both phases'
-  plans were reviewed with the user before implementation.
+  `services/llm/base.py`. Discovery and scoring are entirely LLM-free by design (regex/HTML
+  parsing, weighted arithmetic); research and outreach do use the LLM, but every research fact
+  is deterministically re-verified against the source text before being trusted (see
+  `services/evidence.py`, shared between resume parsing and research), and every outreach draft
+  passes a deterministic banned-phrase filter before being shown -- see the deterministic-vs-LLM
+  table in the Phase 1 plan.
+- **The evidence-verification pattern is shared, not duplicated.** `app/services/evidence.py`'s
+  `verify_snippet` is used identically by resume skill-claim checking and company-research
+  fact-checking -- one "does this quote actually appear in the source text" function, two
+  callers, so both stay consistent as the check itself evolves.
+- **Agents propose; humans decide.** Nothing in this codebase sends a message or marks a
+  candidate as contacted on its own -- `applications.status` only ever changes via an explicit
+  `PATCH /applications/{id}` call (see api/routers/applications.py). Outreach generation is the
+  one exception that *nudges* status (`DISCOVERED` -> `REVIEW`, since a fresh draft needs human
+  eyes), and that's a status meaning "ready for you to look at," not "sent."
+- Full architecture, PostgreSQL schema (including tables for later phases), and all three
+  phases' plans were reviewed with the user before implementation.
 
 ## Roadmap
 
-- **Phase 3:** Outreach Message Agent (multi-variant, buzzword-filtered, `startup_outreach`
-  only), contact identification, Company Research Agent (FACT vs. INFERENCE, with sources),
-  full CRM dashboard (Next.js -- approve/edit/copy/mark-contacted), personal-connection
-  detection's LLM-written rationale layered on Phase 2's deterministic triggers.
 - **Phase 4:** additional discovery adapters (YC, Wellfound, VC portfolios) behind
   `CompanySource`, once their ToS/scraping feasibility is checked per-source; a real
-  `SearchProvider`; a simple scheduler (APScheduler) for periodic re-runs.
-- **Phase 5:** hardening -- fuller agent-decision logging, prompt-version registry, configurable
-  scoring weights UI, evaluation harness, deployment packaging.
+  `SearchProvider` (for companies with no known website yet); a simple scheduler (APScheduler)
+  for periodic re-runs; an `applications` listing/filter endpoint for the future dashboard.
+- **Phase 5:** the Next.js dashboard itself; hardening -- fuller agent-decision logging,
+  prompt-version registry, configurable scoring-weights UI, an evaluation harness, deployment
+  packaging.

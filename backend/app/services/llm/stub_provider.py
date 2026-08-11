@@ -140,9 +140,7 @@ def _research_company(page_text: str) -> LLMCompanyResearchData:
         return LLMCompanyResearchData(facts=[], inferences=[])
     headline = lines[0]
     return LLMCompanyResearchData(
-        facts=[
-            LLMResearchFact(fact_type="what_they_build", statement=headline, evidence=headline)
-        ],
+        facts=[LLMResearchFact(fact_type="what_they_build", statement=headline, evidence=headline)],
         inferences=[],
     )
 
@@ -157,9 +155,12 @@ def _draft_outreach(context_prompt: str) -> LLMOutreachMessages:
         f"Hi,\n\nI came across {company_name} and wanted to reach out about the role.\n\n"
         f"{_STUB_MESSAGE_NOTE}\n\nBest,\nAdi"
     )
+    connection_note = (
+        f"Hi -- interested in {company_name}, would love to connect. {_STUB_MESSAGE_NOTE}"
+    )
     return LLMOutreachMessages(
         linkedin_full=body,
-        linkedin_connection=f"Hi -- interested in {company_name}, would love to connect. {_STUB_MESSAGE_NOTE}",
+        linkedin_connection=connection_note,
         email=f"Subject: Interest in {company_name}\n\n{body}",
         personalization_rationale=(
             "Stub provider: no real personalization was performed. Configure a real LLM "
