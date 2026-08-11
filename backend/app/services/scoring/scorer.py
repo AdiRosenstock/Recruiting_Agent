@@ -8,6 +8,7 @@ swapped into these component functions without touching the aggregation/persiste
 import re
 from datetime import date
 
+from app.domain_connections import detect_domain_connections
 from app.schemas.candidate import CandidateProfile
 from app.schemas.company import CompanyRead
 from app.schemas.fit_score import FitScoreComponent, FitScoreResult, Tier
@@ -34,33 +35,6 @@ _AI_DATA_KEYWORDS = (
     "data pipeline",
     "data infrastructure",
 )
-
-# label -> keywords whose presence in company.industry/description constitutes a genuine,
-# pre-confirmed personal connection (see the Phase 1 spec's "Personal Connection Detection").
-# Deliberately deterministic and narrow -- Phase 3's Research Agent may add an LLM-written
-# rationale on top of a hit here, but never invents a connection that isn't triggered here.
-_DOMAIN_TRIGGERS: dict[str, tuple[str, ...]] = {
-    "healthcare/radiology (Adi's mother is a radiologist)": (
-        "radiology",
-        "medical imaging",
-        "ultrasound",
-        "healthcare ai",
-        "diagnostic imaging",
-    ),
-    "Costa Rica / Latin America background": (
-        "costa rica",
-        "latin america",
-        "latam",
-        "cross-border payments",
-    ),
-    "fintech / financial-data (Bloomberg experience)": (
-        "fintech",
-        "financial data",
-        "market data",
-        "trading platform",
-        "financial infrastructure",
-    ),
-}
 
 _TIER_THRESHOLDS: tuple[tuple[float, Tier], ...] = (
     (90, "excellent"),
@@ -293,12 +267,8 @@ class FitScorer:
 
     @staticmethod
     def _domain_match(company: CompanyRead) -> FitScoreComponent:
-        haystack = f"{company.industry or ''} {company.description or ''}".lower()
-        hits = [
-            label
-            for label, keywords in _DOMAIN_TRIGGERS.items()
-            if any(keyword in haystack for keyword in keywords)
-        ]
+        haystack = f"{company.industry or ''} {company.description or ''}"
+        hits = detect_domain_connections(haystack)
         if hits:
             return FitScoreComponent(
                 score=1.0, explanation=f"Genuine personal connection: {'; '.join(hits)}."

@@ -6,42 +6,13 @@ confidence downgraded (never silently dropped -- it stays visible with `verified
 human can still see and judge it in the dashboard later).
 """
 
-import difflib
-import re
 from dataclasses import dataclass, field
 
 from app.core.logging import log_agent_decision
 from app.schemas.llm_extraction import LLMExtractedCandidateData, LLMSkillClaim
+from app.services.evidence import verify_snippet
 
-_WHITESPACE_RE = re.compile(r"\s+")
 _UNVERIFIED_CONFIDENCE_CAP = 0.3
-_FUZZY_MATCH_THRESHOLD = 0.85
-
-
-def _normalize(text: str) -> str:
-    return _WHITESPACE_RE.sub(" ", text).strip().lower()
-
-
-def verify_snippet(snippet: str, raw_text: str) -> bool:
-    """True if `snippet` appears verbatim (normalized) in `raw_text`, or is a close enough
-    near-match to one of its lines to account for pdfplumber formatting artifacts (hyphenation,
-    collapsed bullets, etc.) -- not to account for genuine paraphrasing.
-    """
-    if not snippet.strip():
-        return False
-
-    normalized_snippet = _normalize(snippet)
-    normalized_raw = _normalize(raw_text)
-    if normalized_snippet in normalized_raw:
-        return True
-
-    raw_lines = [_normalize(line) for line in raw_text.splitlines() if line.strip()]
-    if not raw_lines:
-        return False
-    best_ratio = max(
-        difflib.SequenceMatcher(None, normalized_snippet, line).ratio() for line in raw_lines
-    )
-    return best_ratio >= _FUZZY_MATCH_THRESHOLD
 
 
 @dataclass(frozen=True)

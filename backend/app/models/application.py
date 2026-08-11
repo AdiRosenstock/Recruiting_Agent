@@ -1,6 +1,7 @@
 """The CRM pipeline row: one per (candidate, job, profile), tracking status through the human
-approval workflow. `contact_id`/`outreach_message_id` are plain nullable UUID columns (not FKs
-yet) until `contacts`/`outreach_messages` land in Phase 3.
+approval workflow. `contact_id`/`outreach_message_id`/`fit_score_id` are set as the pipeline
+progresses (discovery creates the row; scoring sets `fit_score_id`; research/contact-lookup sets
+`contact_id`; outreach generation sets `outreach_message_id`).
 """
 
 import uuid
@@ -16,13 +17,26 @@ from app.models.mixins import TimestampMixin, UUIDPk
 
 if TYPE_CHECKING:
     from app.models.candidate import Candidate
+    from app.models.contact import Contact
     from app.models.fit_score import FitScore
     from app.models.job import Job
+    from app.models.outreach_message import OutreachMessage
     from app.models.search_profile import SearchProfile
 
 # DISCOVERED | RESEARCHING | REVIEW | READY_TO_CONTACT | CONTACTED | RESPONDED | INTERVIEW |
 # REJECTED | ARCHIVED
 DEFAULT_STATUS = "DISCOVERED"
+VALID_STATUSES = (
+    "DISCOVERED",
+    "RESEARCHING",
+    "REVIEW",
+    "READY_TO_CONTACT",
+    "CONTACTED",
+    "RESPONDED",
+    "INTERVIEW",
+    "REJECTED",
+    "ARCHIVED",
+)
 
 
 class Application(Base, UUIDPk, TimestampMixin):
@@ -48,11 +62,15 @@ class Application(Base, UUIDPk, TimestampMixin):
         nullable=False,
         index=True,
     )
-    contact_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), nullable=True)
+    contact_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("contacts.id"), nullable=True
+    )
     fit_score_id: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True), ForeignKey("fit_scores.id"), nullable=True
     )
-    outreach_message_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), nullable=True)
+    outreach_message_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("outreach_messages.id"), nullable=True
+    )
     status: Mapped[str] = mapped_column(
         String, nullable=False, default=DEFAULT_STATUS, server_default=text(f"'{DEFAULT_STATUS}'")
     )
@@ -64,3 +82,5 @@ class Application(Base, UUIDPk, TimestampMixin):
     job: Mapped["Job"] = relationship()
     profile: Mapped["SearchProfile"] = relationship()
     fit_score: Mapped["FitScore | None"] = relationship()
+    contact: Mapped["Contact | None"] = relationship()
+    outreach_message: Mapped["OutreachMessage | None"] = relationship()

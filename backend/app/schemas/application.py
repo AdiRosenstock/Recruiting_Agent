@@ -31,3 +31,13 @@ class ApplicationRead(BaseModel):
     notes: str | None
     contacted_at: datetime | None
     responded_at: datetime | None
+
+
+class ApplicationUpdate(BaseModel):
+    """Human-driven state changes -- approve/edit/skip/mark-contacted all go through this.
+    Nothing here is ever set automatically by an agent; status transitions are a human action.
+    """
+
+    status: ApplicationStatus | None = None
+    notes: str | None = None
+    contact_id: uuid.UUID | None = None
