@@ -68,3 +68,8 @@ npm run test:e2e
 
 This is a manual/pre-release check (real network calls, real backend state), not part of
 `npm run lint`/CI.
+
+---
+
+Built by Adi Rosenstock -- see the [root README](../README.md#about-the-author) for what the
+whole system does and how to reach me.

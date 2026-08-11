@@ -1,18 +1,97 @@
 # Recruiting Agent
 
-A personal "startup recruiting CRM + research agent": upload a resume, get a structured,
-evidence-backed candidate profile, then run **search profiles** -- named, independently
-configured agents (discovery sources, fit-scoring weights, whether outreach is enabled) that
-share one underlying pipeline (Discovery -> Score -> [Research -> Contact -> Outreach, if
-enabled]). Two profiles exist out of the box:
+[![CI](https://github.com/AdiRosenstock/Recruiting_Agent/actions/workflows/ci.yml/badge.svg)](https://github.com/AdiRosenstock/Recruiting_Agent/actions/workflows/ci.yml)
+![Python](https://img.shields.io/badge/python-3.12-blue)
+![TypeScript](https://img.shields.io/badge/typescript-5-blue)
+![Next.js](https://img.shields.io/badge/Next.js-16-black)
+![FastAPI](https://img.shields.io/badge/FastAPI-009688)
+![Tests](https://img.shields.io/badge/backend%20tests-192%20passing-brightgreen)
+![Coverage](https://img.shields.io/badge/coverage-96%25-brightgreen)
+
+A full-stack, agentic job-search system, designed and built solo: resume in, structured
+evidence-backed candidate profile out; live discovery against real external sources; a
+deterministic, explainable fit score for every job; company research with facts kept
+verifiably separate from inferences; and a drafted, human-approved outreach message --
+never sent automatically. The throughline across every piece: an LLM is used exactly where
+judgment is genuinely needed and nowhere else, and nothing it produces is ever presented as
+more certain than it actually is.
+
+**Jump to:** [Highlights](#highlights) · [Screenshots](#screenshots) ·
+[Architecture](#pipeline) · [Run it yourself](#local-setup) ·
+[Architecture notes](#architecture-notes) · [About](#about-the-author)
+
+## Highlights
+
+- **Full stack, solo:** FastAPI + SQLAlchemy 2.0 + PostgreSQL backend, Next.js 16 / React 19 /
+  TypeScript dashboard, Docker Compose deployment (with real healthchecks, not just `Up`),
+  GitHub Actions CI. 192 backend tests, 96% coverage, zero live-network calls in the suite --
+  and a full Playwright end-to-end run against the real app on every meaningful change, not just
+  unit tests in isolation.
+- **Real external data, not fixtures.** Live discovery adapters against Hacker News' "Who is
+  Hiring" API, YC's public company directory, and a public GitHub new-grad tracker -- no login,
+  no API key, no scraping of anything that says no: checked a candidate source's `robots.txt`
+  before writing an adapter for it, and didn't build one when it disallowed the exact pages
+  needed (see the [Roadmap](#roadmap)) rather than building it anyway.
+- **An architecture built around not hallucinating.** Every LLM call returns a validated Pydantic
+  model, never free text to parse hopefully. Every "fact" the company-research agent extracts is
+  re-verified verbatim against the actual fetched page text before being trusted -- a claim that
+  can't be verified is *demoted* to an inference, never silently dropped, never left posing as
+  more certain than it is. One evidence-verification function backs both resume skill-claims and
+  company research, so the check stays consistent as it evolves.
+- **Deterministic, explainable scoring.** A 7-component weighted fit score with human-readable
+  strengths/gaps -- no LLM ever asked to "just output a number." Found and fixed a real bug in
+  it by actually looking at live data, not just trusting the code: 227 of 389 real scored jobs
+  shared one identical score. Root-caused it to a scoring source with no structured data to
+  differentiate on, fixed the fallback, and re-verified the fix moved real numbers (17 jobs
+  newly hit "strong" tier, up from zero).
+- **A visa-sponsorship detector**, same philosophy: a negation-aware deterministic keyword
+  scanner, not an LLM guess. Caught and fixed a false-positive in my own test cases before ever
+  shipping it ("not eligible for sponsorship" was matching the positive pattern). Run for real
+  against 389 live job postings; every hit spot-checked by hand -- zero false positives.
+- **Nothing here sends anything to anyone, by design, not as an afterthought.** Outreach is
+  drafted, reviewed, and manually sent by a human. No LinkedIn automation, no scraping of people,
+  no auto-contacting -- enforced structurally (there is no code path from a draft to a send),
+  not just by convention.
+
+## Screenshots
+
+<img src="docs/screenshots/dashboard-jobs-table.png" alt="Dashboard: a sortable, filterable jobs table with real, explainable fit scores" width="820">
+
+*68 real jobs, discovered live from Hacker News and YC's public directory for a seed-stage NYC
+startup search -- sortable by fit, location, or visa-sponsorship signal.*
+
+<img src="docs/screenshots/job-detail-panel.png" alt="Job detail panel showing an explainable fit-score breakdown" width="820">
+
+*Every score is explainable -- strengths and gaps in plain English, never a black-box number.*
+
+<img src="docs/screenshots/all-applications.png" alt="Cross-profile All Applications view" width="820">
+
+*A cross-profile view across every job-search agent at once, with its own search/filter/sort.*
+
+## Pipeline
+
+```mermaid
+flowchart LR
+    A[Resume upload] --> B["Structured, evidence-verified<br/>candidate profile"]
+    B --> C["Discovery<br/>(HN · YC · GitHub — live)"]
+    C --> D["Deterministic fit scoring<br/>(7 components, explainable)"]
+    D --> E["Company research<br/>FACT vs INFERENCE"]
+    E --> F[Contact identification]
+    F --> G[Drafted outreach]
+    G --> H(["Human review & send"])
+
+    style H fill:#2d5,stroke:#1a3,color:#000
+```
+
+Two independently configured **search profiles** run this same pipeline out of the box:
 
 - **`startup_outreach`** -- seed-Series B NYC startups, small teams, outreach enabled: research,
   contact identification, and drafted (human-approved, human-sent) outreach messages all run.
 - **`new_grad_2027`** -- a wide net across company sizes for new-grad 2027 roles (including
   finance/quant-adjacent ones), tracking-only -- research/contacts/outreach never run for it.
 
-Nothing in this system automates LinkedIn (no scraping, no login automation, no auto-sending).
-Outreach is always human-approved and human-sent; see the compliance note in the original spec.
+Adding a third profile (different sources, weights, or outreach on/off) is a config row, not a
+new code path -- see `scripts/seed_profiles.py`.
 
 ## What's here
 
@@ -68,8 +147,8 @@ Outreach is always human-approved and human-sent; see the compliance note in the
   (`app/domain_connections.py` -- the same list the fit scorer uses) is stored as its own
   inference row. Re-running research on an unchanged page doesn't pile up duplicate rows.
 - **Contacts** (`services/contacts.py`): manual entry -- no LinkedIn scraping, no login
-  automation, ever (see the "Nothing in this system automates LinkedIn" note above) -- with a
-  deterministic priority rank computed from the spec's two priority lists
+  automation, ever -- with a deterministic priority rank computed from the spec's two priority
+  lists
   (very-early-stage vs. larger company, by employee count).
 - **Outreach Message Agent** (`services/outreach/`): drafts `linkedin_full` /
   `linkedin_connection` / `email` variants from real assembled context (candidate background,
@@ -419,3 +498,17 @@ frontend in a real browser against it with zero console errors.
   `technical_match` scoring fallback for sources with no structured tech list, found live after
   batch-scoring produced a wall of identical scores for ~227 of 389 real jobs;
   `scripts/batch_score.py` for scoring hundreds of newly-discovered jobs in one pass.
+
+## About the Author
+
+Built by **Adi Rosenstock** -- data science & economics student at Northwestern University,
+currently building agentic AI/data-engineering systems (most recently at Bloomberg). This
+project is the tool I actually use for my own job search, and also a full-stack sample of how I
+build: real external data over fixtures, verify-before-trust over "the LLM said so," tests and
+CI over "it worked when I ran it once," and finding bugs by looking at real output rather than
+just reading the code and assuming it's right.
+
+Feel free to reach out -- happy to talk about any of the engineering decisions above:
+
+- **LinkedIn:** [www.linkedin.com/in/adirosenstock](https://www.linkedin.com/in/adirosenstock)
+- **Email:** [adirosenstock2026@u.northwestern.edu](mailto:adirosenstock2026@u.northwestern.edu)
