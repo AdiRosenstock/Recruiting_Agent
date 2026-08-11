@@ -251,13 +251,21 @@ docker compose exec db psql -U recruiting_agent -d recruiting_agent -c "CREATE D
 - Full architecture, PostgreSQL schema (including tables for later phases), and all three
   phases' plans were reviewed with the user before implementation.
 
+## Optional periodic discovery refresh
+
+`services/scheduler.py` -- an in-process APScheduler `BackgroundScheduler`, wired into the
+app's lifespan (`app/main.py`). **Off by default** (`ENABLE_SCHEDULER=false`): the app never
+makes background network calls to HN/YC/GitHub on its own. Set `ENABLE_SCHEDULER=true` and
+`DISCOVERY_REFRESH_HOURS` (default 6) to have it re-run `run_discovery_for_profile` for every
+existing search profile on a timer -- the exact same logic `POST /discovery/run` uses, just
+triggered by a clock instead of a request. The first run happens one full interval after
+startup, not immediately.
+
 ## Roadmap
 
-- **Phase 4 (in progress):** ~~YC company directory~~ done; still open: Wellfound/VC-portfolio
+- **Phase 4 (in progress):** ~~YC company directory~~, ~~scheduler~~, ~~applications
+  listing~~, ~~`PATCH /search-profiles/{id}`~~ all done. Still open: Wellfound/VC-portfolio
   `CompanySource` adapters (pending per-source ToS/scraping review); a real `SearchProvider`
-  (for companies with no known website); a scheduler for periodic re-runs; an `applications`
-  listing/filter endpoint for the future dashboard; a `PATCH /search-profiles/{id}` endpoint so
-  weights/filters can be tuned without re-seeding.
-- **Phase 5:** the Next.js dashboard itself; hardening -- fuller agent-decision logging,
-  prompt-version registry, configurable scoring-weights UI, an evaluation harness, deployment
-  packaging.
+  (for companies with no known website).
+- **Phase 5:** the Next.js dashboard; hardening -- fuller agent-decision logging,
+  prompt-version registry, an evaluation harness, deployment packaging.

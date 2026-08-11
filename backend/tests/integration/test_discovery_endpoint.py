@@ -1,17 +1,17 @@
 """Integration tests for POST /api/v1/discovery/run. Adapters are swapped for fakes via
-monkeypatching `app.api.routers.discovery`'s adapter registries -- no live network calls to
+monkeypatching `app.services.discovery.runner`'s adapter registries -- no live network calls to
 HN/GitHub/YC in the test suite; those are covered separately (with mocked HTTP) in
 tests/unit/test_hn_who_is_hiring.py, test_github_new_grad_list.py, and test_yc_directory.py.
 
 Every test that uses the `startup_outreach` profile key must also clear
-`_COMPANY_ADAPTERS_BY_PROFILE_KEY["startup_outreach"]` (real `YCDirectorySource` is wired to it
+`COMPANY_ADAPTERS_BY_PROFILE_KEY["startup_outreach"]` (real `YCDirectorySource` is wired to it
 by default) so no test ever makes a live network call by accident.
 """
 
 import pytest
 from fastapi.testclient import TestClient
 
-import app.api.routers.discovery as discovery_module
+import app.services.discovery.runner as discovery_runner
 from app.schemas.discovery import DiscoveredCompany, DiscoveredJob, DiscoveryQuery
 
 
@@ -73,7 +73,7 @@ class _FakeCompanySource:
 
 
 def _clear_startup_outreach_company_adapters(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setitem(discovery_module._COMPANY_ADAPTERS_BY_PROFILE_KEY, "startup_outreach", [])
+    monkeypatch.setitem(discovery_runner.COMPANY_ADAPTERS_BY_PROFILE_KEY, "startup_outreach", [])
 
 
 def _create_candidate(client: TestClient) -> str:
@@ -97,7 +97,7 @@ def test_discovery_run_upserts_companies_jobs_and_applications(
     client: TestClient, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     monkeypatch.setitem(
-        discovery_module._JOB_BOARD_ADAPTERS_BY_PROFILE_KEY,
+        discovery_runner.JOB_BOARD_ADAPTERS_BY_PROFILE_KEY,
         "startup_outreach",
         [_FakeJobBoardSource],
     )
@@ -122,7 +122,7 @@ def test_discovery_run_upserts_companies_jobs_and_applications(
 
 def test_discovery_run_is_idempotent(client: TestClient, monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setitem(
-        discovery_module._JOB_BOARD_ADAPTERS_BY_PROFILE_KEY,
+        discovery_runner.JOB_BOARD_ADAPTERS_BY_PROFILE_KEY,
         "startup_outreach",
         [_FakeJobBoardSource],
     )
@@ -149,7 +149,7 @@ def test_discovery_run_warns_but_does_not_fail_on_adapter_error(
     client: TestClient, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     monkeypatch.setitem(
-        discovery_module._JOB_BOARD_ADAPTERS_BY_PROFILE_KEY, "startup_outreach", [_BrokenSource]
+        discovery_runner.JOB_BOARD_ADAPTERS_BY_PROFILE_KEY, "startup_outreach", [_BrokenSource]
     )
     _clear_startup_outreach_company_adapters(monkeypatch)
     candidate_id = _create_candidate(client)
@@ -184,9 +184,9 @@ def test_discovery_run_with_company_source_upserts_company_without_jobs(
     """The company-first path: a CompanySource can add a company even when it produces no jobs
     (YCDirectorySource's real, documented behavior) -- no application row without a job, since
     applications requires one."""
-    monkeypatch.setitem(discovery_module._JOB_BOARD_ADAPTERS_BY_PROFILE_KEY, "startup_outreach", [])
+    monkeypatch.setitem(discovery_runner.JOB_BOARD_ADAPTERS_BY_PROFILE_KEY, "startup_outreach", [])
     monkeypatch.setitem(
-        discovery_module._COMPANY_ADAPTERS_BY_PROFILE_KEY, "startup_outreach", [_FakeCompanySource]
+        discovery_runner.COMPANY_ADAPTERS_BY_PROFILE_KEY, "startup_outreach", [_FakeCompanySource]
     )
     candidate_id = _create_candidate(client)
     profile = _create_profile(client, candidate_id)

@@ -1,3 +1,6 @@
+from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
@@ -15,6 +18,16 @@ from app.api.routers import (
 )
 from app.config import get_settings
 from app.core.logging import configure_logging
+from app.services.scheduler import start_scheduler, stop_scheduler
+
+
+@asynccontextmanager
+async def _lifespan(app: FastAPI) -> AsyncIterator[None]:
+    scheduler = start_scheduler(get_settings())
+    try:
+        yield
+    finally:
+        stop_scheduler(scheduler)
 
 
 def create_app() -> FastAPI:
@@ -25,6 +38,7 @@ def create_app() -> FastAPI:
         title="Recruiting Agent API",
         description="Personal startup recruiting CRM + research agent -- backend API.",
         version="0.1.0",
+        lifespan=_lifespan,
     )
 
     app.add_middleware(

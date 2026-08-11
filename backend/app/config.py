@@ -44,8 +44,13 @@ class Settings(BaseSettings):
     anthropic_model: str = "claude-sonnet-5"
 
     # No real provider exists yet (see services/search) -- "stub" is the only valid value until
-    # Phase 3, when a real key (Brave/Bing/SerpAPI) gets added here the same way the LLM keys are.
+    # a real key (Brave/Bing/SerpAPI) gets added here the same way the LLM keys are.
     search_provider: Literal["stub"] = "stub"
+
+    # Off by default -- the app should never make background network calls (to HN/YC/GitHub)
+    # without being explicitly asked to. See services/scheduler.py.
+    enable_scheduler: bool = False
+    discovery_refresh_hours: float = 6.0
 
     @property
     def cors_origin_list(self) -> list[str]:

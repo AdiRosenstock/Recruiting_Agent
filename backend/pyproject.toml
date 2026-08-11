@@ -3,7 +3,9 @@ name = "recruiting-agent-backend"
 version = "0.1.0"
 description = "Personal startup recruiting CRM + research agent -- backend"
 requires-python = ">=3.11"
-readme = "../README.md"
+# No `readme` field: this package isn't published, and pointing it at the repo-root README.md
+# (outside backend/) has become invalid with newer hatchling versions, which now require the
+# readme to live within the project directory. See ../README.md for the actual docs.
 license = { text = "Proprietary" }
 dependencies = [
     "fastapi>=0.115",
@@ -19,6 +21,7 @@ dependencies = [
     "openai>=1.50",
     "anthropic>=0.36",
     "httpx>=0.27",  # used directly by discovery adapters (HN API, GitHub raw fetch)
+    "apscheduler>=3.10,<4.0",  # optional periodic discovery refresh, off by default -- see services/scheduler.py
 ]
 
 [project.optional-dependencies]
@@ -65,7 +68,7 @@ disallow_untyped_defs = true
 exclude = ["tests/"]
 
 [[tool.mypy.overrides]]
-module = ["pdfplumber.*"]
+module = ["pdfplumber.*", "apscheduler.*"]
 ignore_missing_imports = true
 
 [tool.pytest.ini_options]
