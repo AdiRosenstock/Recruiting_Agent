@@ -1,7 +1,27 @@
 "use client";
 
+import { useMemo, useState } from "react";
 import type { JobWithScore } from "@/lib/types";
 import { StatusBadge, TierBadge } from "./Badges";
+
+type SortKey = "company" | "role" | "fit" | "stage" | "location" | "status";
+
+function sortValue(entry: JobWithScore, key: SortKey): string | number {
+  switch (key) {
+    case "company":
+      return entry.company.name.toLowerCase();
+    case "role":
+      return entry.job.title.toLowerCase();
+    case "fit":
+      return entry.fit_score?.overall_score ?? -1;
+    case "stage":
+      return entry.company.funding_stage ?? "";
+    case "location":
+      return entry.job.location?.toLowerCase() ?? "";
+    case "status":
+      return entry.application_status;
+  }
+}
 
 export default function JobsTable({
   jobs,
@@ -16,6 +36,31 @@ export default function JobsTable({
   onScore: (job: JobWithScore) => void;
   scoringId: string | null;
 }) {
+  // Defaults to highest fit first -- matches the API's own default ordering, so sorting only
+  // changes anything once you actually click a header.
+  const [sortKey, setSortKey] = useState<SortKey>("fit");
+  const [sortDesc, setSortDesc] = useState(true);
+
+  const sorted = useMemo(() => {
+    const copy = [...jobs];
+    copy.sort((a, b) => {
+      const va = sortValue(a, sortKey);
+      const vb = sortValue(b, sortKey);
+      const cmp = va < vb ? -1 : va > vb ? 1 : 0;
+      return sortDesc ? -cmp : cmp;
+    });
+    return copy;
+  }, [jobs, sortKey, sortDesc]);
+
+  function toggleSort(key: SortKey) {
+    if (key === sortKey) {
+      setSortDesc((d) => !d);
+    } else {
+      setSortKey(key);
+      setSortDesc(true);
+    }
+  }
+
   if (jobs.length === 0) {
     return (
       <p className="muted">
@@ -24,22 +69,31 @@ export default function JobsTable({
     );
   }
 
+  function headerLabel(key: SortKey, label: string) {
+    return (
+      <th className="sortable" onClick={() => toggleSort(key)}>
+        {label}
+        {sortKey === key ? (sortDesc ? " ▼" : " ▲") : ""}
+      </th>
+    );
+  }
+
   return (
     <div className="table-scroll">
       <table>
         <thead>
           <tr>
-            <th>Company</th>
-            <th>Role</th>
-            <th>Fit</th>
-            <th>Stage</th>
-            <th>Location</th>
-            <th>Status</th>
+            {headerLabel("company", "Company")}
+            {headerLabel("role", "Role")}
+            {headerLabel("fit", "Fit")}
+            {headerLabel("stage", "Stage")}
+            {headerLabel("location", "Location")}
+            {headerLabel("status", "Status")}
             <th></th>
           </tr>
         </thead>
         <tbody>
-          {jobs.map((entry) => (
+          {sorted.map((entry) => (
             <tr
               key={entry.application_id}
               className={entry.application_id === selectedId ? "selected" : ""}
@@ -81,6 +135,9 @@ export default function JobsTable({
           ))}
         </tbody>
       </table>
+      <p className="muted" style={{ marginTop: 8 }}>
+        {jobs.length} job{jobs.length === 1 ? "" : "s"} -- click a column header to sort.
+      </p>
     </div>
   );
 }

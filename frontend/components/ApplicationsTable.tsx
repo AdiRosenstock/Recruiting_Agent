@@ -4,13 +4,14 @@ import { useMemo, useState } from "react";
 import type { ApplicationWithDetails } from "@/lib/types";
 import { StatusBadge, TierBadge } from "./Badges";
 
-type SortKey = "updated_at" | "fit_score" | "company" | "role";
+type SortKey = "updated_at" | "fit_score" | "company" | "role" | "location";
 
 const SORT_LABELS: Record<SortKey, string> = {
   updated_at: "Last updated",
   fit_score: "Fit score",
   company: "Company",
   role: "Role",
+  location: "Location",
 };
 
 function sortValue(row: ApplicationWithDetails, key: SortKey): string | number {
@@ -23,6 +24,8 @@ function sortValue(row: ApplicationWithDetails, key: SortKey): string | number {
       return row.company.name.toLowerCase();
     case "role":
       return row.job.title.toLowerCase();
+    case "location":
+      return row.job.location?.toLowerCase() ?? "";
   }
 }
 
@@ -71,9 +74,9 @@ export default function ApplicationsTable({
         <thead>
           <tr>
             <th>Profile</th>
-            {(["company", "role", "fit_score"] as SortKey[]).map((key) => (
+            {(["company", "role", "fit_score", "location"] as SortKey[]).map((key) => (
               <th key={key} className="sortable" onClick={() => toggleSort(key)}>
-                {key === "company" ? "Company" : key === "role" ? "Role" : "Fit"}
+                {SORT_LABELS[key] === "Fit score" ? "Fit" : SORT_LABELS[key]}
                 {sortKey === key ? (sortDesc ? " ▼" : " ▲") : ""}
               </th>
             ))}
@@ -103,6 +106,7 @@ export default function ApplicationsTable({
                   <span className="muted">—</span>
                 )}
               </td>
+              <td>{row.job.location ?? "—"}</td>
               <td>
                 <StatusBadge status={row.status} />
               </td>
