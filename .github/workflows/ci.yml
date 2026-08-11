@@ -1,0 +1,72 @@
+name: CI
+
+# Runs the same checks the README asks a human to run before committing (pytest/ruff/mypy,
+# tsc/eslint/next build) -- a safety net for a solo project, not a gate anyone's waiting on.
+# Nothing here deploys, publishes, or talks to a real LLM/search provider: every job runs with
+# LLM_PROVIDER=stub / SEARCH_PROVIDER=stub, same as local `pytest` does by default, so CI never
+# needs API keys and never makes a real LLM call. Discovery/research adapter *unit* tests mock
+# their HTTP calls (see backend/README notes in tests/); nothing in this workflow makes a live
+# network call to HN/YC/GitHub either.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  backend:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: recruiting_agent
+          POSTGRES_PASSWORD: recruiting_agent
+          POSTGRES_DB: recruiting_agent_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U recruiting_agent"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      DATABASE_URL_TEST: postgresql+psycopg://recruiting_agent:recruiting_agent@localhost:5432/recruiting_agent_test
+      LLM_PROVIDER: stub
+      SEARCH_PROVIDER: stub
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install -e ".[dev]"
+      - run: ruff check .
+      - run: ruff format --check .
+      - run: mypy app
+      - run: pytest
+
+  frontend:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm run lint
+      # NEXT_PUBLIC_API_BASE_URL is inlined at build time (see Dockerfile) -- this is a build-only
+      # smoke check (nothing here runs the server or e2e/smoke.mjs, which needs a live backend
+      # and real network access to HN/YC/GitHub; that stays a manual pre-release check).
+      - run: npm run build
+        env:
+          NEXT_PUBLIC_API_BASE_URL: http://localhost:8000

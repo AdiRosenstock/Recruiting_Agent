@@ -233,6 +233,11 @@ docker compose -f ../docker-compose.yml up -d db   # if not already running
 .venv/bin/mypy app
 ```
 
+`.github/workflows/ci.yml` runs exactly these (plus `frontend`'s `typecheck`/`lint`/`build`) on
+every push/PR against a real Postgres service container -- `LLM_PROVIDER=stub`/
+`SEARCH_PROVIDER=stub`, no API keys or live network calls needed. `e2e/smoke.mjs` stays a
+manual pre-release check (needs a live backend and hits real external sources), not part of CI.
+
 Unit tests for the discovery adapters mock HTTP (fixture shapes were confirmed against the real
 HN Algolia API and the real GitHub tracker README during development, but tests never hit the
 network) -- integration tests use a monkeypatched adapter registry for the same reason. Nothing
@@ -362,8 +367,13 @@ frontend in a real browser against it with zero console errors.
 
 - **Phase 4 (in progress):** ~~YC company directory~~, ~~scheduler~~, ~~applications
   listing~~, ~~`PATCH /search-profiles/{id}`~~, ~~a real `SearchProvider`~~ all done. Still
-  open: Wellfound/VC-portfolio `CompanySource` adapters (pending per-source ToS/scraping
-  review).
+  open: a Wellfound `CompanySource` adapter -- checked, not built: its `robots.txt` explicitly
+  disallows `/search` and every query-filtered job-listing URL (the only way to browse startup
+  jobs there), so it fails this project's own no-scraping-what's-disallowed bar the same way
+  YC/HN/GitHub had to clear it first. A specific VC-portfolio page could still work as a
+  `CompanySource` (YC's own public directory JSON is the existing proof this pattern works when
+  a source actually publishes one) but needs picking one real source and checking *its* terms
+  individually -- not a blanket "VC portfolios" adapter.
 - **Phase 5 (done):** ~~the Next.js dashboard~~, ~~deployment packaging~~ (Dockerfiles + full
   `docker-compose` stack, see "Running the whole stack in Docker" above), ~~an evaluation
   harness~~ (`scripts/evaluate.py`, see "Evaluation harness" above), ~~multi-source
