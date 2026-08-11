@@ -140,6 +140,21 @@ select:focus {
   color: var(--text);
 }
 
+.filter-bar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 12px;
+  flex-wrap: wrap;
+}
+.filter-bar input[type="search"] {
+  flex: 1;
+  min-width: 200px;
+}
+.filter-bar select {
+  width: auto;
+}
+
 table {
   width: 100%;
   border-collapse: collapse;
@@ -170,6 +185,14 @@ tbody tr.selected {
 
 .table-scroll {
   overflow-x: auto;
+}
+
+th.sortable {
+  cursor: pointer;
+  user-select: none;
+}
+th.sortable:hover {
+  color: var(--text);
 }
 
 .badge {

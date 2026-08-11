@@ -31,6 +31,10 @@ CORS is already configured for `http://localhost:3000` on the backend side.
 - **Dashboard** (`app/page.tsx` + `components/JobsTable.tsx`): profile tabs, a "Run discovery"
   button, and a sortable table of every job tracked under the active profile (fit score, stage,
   location, status).
+- **All Applications** (`components/ApplicationsTable.tsx`): a cross-profile tab alongside the
+  per-profile ones -- every application regardless of which profile found it, with a free-text
+  search (job title/company), a status filter, and click-to-sort columns. Backed by `GET
+  /api/v1/applications`'s `q`/`status`/`profile_id` params.
 - **Job detail panel** (`components/JobDetailPanel.tsx`): fit-score breakdown (strengths/gaps),
   company info, research (run it, see FACTS vs. INFERENCES separated), contacts (add one,
   ranked by the backend's priority logic), outreach (generate all three variants, edit inline,

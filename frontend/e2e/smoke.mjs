@@ -101,6 +101,29 @@ await page.locator(".drawer-close").click();
 await page.waitForTimeout(500);
 await shot("11-back-to-table");
 
+console.log("opening the All Applications tab -- cross-profile search/filter/sort");
+await page.locator('.tab:has-text("All Applications")').click();
+await page.waitForSelector(".filter-bar", { timeout: 10000 });
+await page.waitForTimeout(500);
+await shot("12-all-applications");
+
+await page.locator('input[type="search"]').fill("engineer");
+await page.waitForTimeout(600); // debounced search
+await shot("13-all-applications-search");
+await page.locator('input[type="search"]').fill("");
+
+await page.locator("th.sortable").first().click();
+await page.waitForTimeout(300);
+await shot("14-all-applications-sorted");
+
+const firstAppRow = page.locator("tbody tr").first();
+if (await firstAppRow.isVisible().catch(() => false)) {
+  await firstAppRow.click();
+  await page.waitForSelector(".drawer", { timeout: 10000 });
+  await shot("15-all-applications-detail");
+  await page.locator(".drawer-close").click();
+}
+
 await browser.close();
 
 if (consoleErrors.length > 0) {

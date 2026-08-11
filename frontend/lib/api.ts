@@ -7,6 +7,7 @@
 import type {
   ApplicationRead,
   ApplicationStatus,
+  ApplicationWithDetails,
   CandidateProfile,
   CompanyResearchRead,
   ContactRead,
@@ -133,6 +134,16 @@ export function createContact(
 }
 
 // --- Applications & outreach ---
+
+export function listApplications(
+  candidateId: string,
+  filters?: { status?: ApplicationStatus; q?: string }
+): Promise<ApplicationWithDetails[]> {
+  const params = new URLSearchParams({ candidate_id: candidateId });
+  if (filters?.status) params.set("status", filters.status);
+  if (filters?.q) params.set("q", filters.q);
+  return request(`/api/v1/applications?${params.toString()}`);
+}
 
 export function updateApplication(
   applicationId: string,

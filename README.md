@@ -353,6 +353,8 @@ frontend in a real browser against it with zero console errors.
   review).
 - **Phase 5 (in progress):** ~~the Next.js dashboard~~, ~~deployment packaging~~ (Dockerfiles +
   full `docker-compose` stack, see "Running the whole stack in Docker" above), ~~an evaluation
-  harness~~ (`scripts/evaluate.py`, see "Evaluation harness" above) done. Still open: fuller
-  agent-decision logging, a prompt-version registry, multi-source `applications` filtering UI
-  (search/sort beyond the current per-profile table).
+  harness~~ (`scripts/evaluate.py`, see "Evaluation harness" above), ~~multi-source
+  `applications` filtering UI~~ (the dashboard's "All Applications" tab -- search, status
+  filter, and sortable columns across every profile at once, backed by a new `q` param on `GET
+  /api/v1/applications`) done. Still open: fuller agent-decision logging, a prompt-version
+  registry.
