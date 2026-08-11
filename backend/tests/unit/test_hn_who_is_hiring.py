@@ -63,6 +63,53 @@ def test_parses_well_formed_comment() -> None:
     assert "We build things" in (job.description or "")
 
 
+def test_finds_company_url_in_free_text_body_when_header_has_none() -> None:
+    """Found live: a real posting with no URL in its structured header line but a real
+    "read more: https://ojin.ai" in the body used to leave website=None, forcing a
+    search-engine guess at research time that got the wrong company entirely."""
+    search_json = {"hits": [{"objectID": "222", "title": "Ask HN: Who is hiring? (August 2026)"}]}
+    item_json = {
+        "children": [
+            {
+                "id": 999,
+                "created_at": "2026-08-03T15:00:59.000Z",
+                "text": (
+                    "Ojin | Product Engineer | Remote<p>We build AI infrastructure."
+                    "<p>Apply or read more about us here: https://ojin.ai"
+                ),
+            }
+        ]
+    }
+    client = _make_client(search_json, item_json)
+    jobs = HNWhoIsHiringSource(client=client).search_jobs(DiscoveryQuery())
+
+    assert len(jobs) == 1
+    assert jobs[0].company.website == "https://ojin.ai"
+
+
+def test_ignores_ats_and_social_urls_in_free_text_body() -> None:
+    search_json = {"hits": [{"objectID": "222", "title": "Ask HN: Who is hiring? (August 2026)"}]}
+    item_json = {
+        "children": [
+            {
+                "id": 999,
+                "created_at": "2026-08-03T15:00:59.000Z",
+                "text": (
+                    "Acme | Backend Engineer | Remote<p>We build things."
+                    "<p>Apply here: https://jobs.lever.co/acme/abc123"
+                    "<p>Follow us: https://twitter.com/acmehq"
+                    "<p>Learn more: https://acme.example"
+                ),
+            }
+        ]
+    }
+    client = _make_client(search_json, item_json)
+    jobs = HNWhoIsHiringSource(client=client).search_jobs(DiscoveryQuery())
+
+    assert len(jobs) == 1
+    assert jobs[0].company.website == "https://acme.example"
+
+
 def test_skips_comment_with_no_pipe_delimited_fields() -> None:
     search_json = {"hits": [{"objectID": "222", "title": "Ask HN: Who is hiring? (August 2026)"}]}
     item_json = {
