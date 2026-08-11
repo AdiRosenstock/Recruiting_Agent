@@ -300,6 +300,19 @@ whether the (necessarily narrower) pytest assertions still pass.
 - **The dashboard is plain client components + `fetch`, not RSC data-fetching.** No secrets to
   keep server-side, nothing cacheable that a separate backend service doesn't already own --
   Server Actions/`use cache` would be indirection with no benefit here. See `frontend/README.md`.
+- **Agent-decision logging** (`app/core/logging.py`'s `log_agent_decision`, logger name
+  `app.agent_decisions`) is the greppable trail for "why did the app produce this output" --
+  every LLM call and every non-trivial deterministic decision goes through it. Discovery runs
+  log one summary line per run (sources run, companies/jobs created, warnings) plus one line per
+  failed adapter -- the only durable record a *scheduled* run ever produces, since there's no
+  HTTP response for anyone to read counters off of. Fit-score computations, research fact
+  verification/demotion/dedup, and prompt-version/provider on every LLM call are all logged the
+  same way.
+- **Prompt-version registry** (`app/services/llm/prompt_registry.py`): every LLM-derived row
+  (`candidate_profiles`, `company_research`, `outreach_messages`) carries the `prompt_version`
+  that produced it. The registry is the one place to see all three prompts' current versions and
+  changelog at a glance; `tests/unit/test_prompt_registry.py` fails if a module's `PROMPT_VERSION`
+  drifts from what's registered, so a version bump without a changelog entry doesn't slip through.
 - Full architecture, PostgreSQL schema (including tables for later phases), and all three
   phases' plans were reviewed with the user before implementation.
 
@@ -351,10 +364,13 @@ frontend in a real browser against it with zero console errors.
   listing~~, ~~`PATCH /search-profiles/{id}`~~, ~~a real `SearchProvider`~~ all done. Still
   open: Wellfound/VC-portfolio `CompanySource` adapters (pending per-source ToS/scraping
   review).
-- **Phase 5 (in progress):** ~~the Next.js dashboard~~, ~~deployment packaging~~ (Dockerfiles +
-  full `docker-compose` stack, see "Running the whole stack in Docker" above), ~~an evaluation
+- **Phase 5 (done):** ~~the Next.js dashboard~~, ~~deployment packaging~~ (Dockerfiles + full
+  `docker-compose` stack, see "Running the whole stack in Docker" above), ~~an evaluation
   harness~~ (`scripts/evaluate.py`, see "Evaluation harness" above), ~~multi-source
   `applications` filtering UI~~ (the dashboard's "All Applications" tab -- search, status
   filter, and sortable columns across every profile at once, backed by a new `q` param on `GET
-  /api/v1/applications`) done. Still open: fuller agent-decision logging, a prompt-version
-  registry.
+  /api/v1/applications`), ~~fuller agent-decision logging~~ (discovery runs and fit-score
+  computations now log a decision -- previously the two most consequential, highest-volume
+  actions in the system with no durable trail at all; see "Agent-decision logging" above),
+  ~~a prompt-version registry~~ (`services/llm/prompt_registry.py`, see "Prompt-version
+  registry" above) all done.

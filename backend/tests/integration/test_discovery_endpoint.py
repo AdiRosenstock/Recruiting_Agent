@@ -146,7 +146,7 @@ def test_discovery_run_404s_for_unknown_profile(client: TestClient) -> None:
 
 
 def test_discovery_run_warns_but_does_not_fail_on_adapter_error(
-    client: TestClient, monkeypatch: pytest.MonkeyPatch
+    client: TestClient, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
 ) -> None:
     monkeypatch.setitem(
         discovery_runner.JOB_BOARD_ADAPTERS_BY_PROFILE_KEY, "startup_outreach", [_BrokenSource]
@@ -155,11 +155,19 @@ def test_discovery_run_warns_but_does_not_fail_on_adapter_error(
     candidate_id = _create_candidate(client)
     profile = _create_profile(client, candidate_id)
 
-    response = client.post("/api/v1/discovery/run", json={"profile_id": profile["id"]})
+    with caplog.at_level("INFO", logger="app.agent_decisions"):
+        response = client.post("/api/v1/discovery/run", json={"profile_id": profile["id"]})
     assert response.status_code == 200
     result = response.json()
     assert result["jobs_upserted"] == 0
     assert any("broken_source" in warning for warning in result["warnings"])
+
+    # A scheduled (non-HTTP-triggered) run has no response for anyone to read counters/warnings
+    # off of -- this log line is the only durable record it ever produces, so it has to actually
+    # fire, not just the API response.
+    assert "discovery_adapter_failed" in caplog.text
+    assert "broken_source" in caplog.text
+    assert "discovery_run_completed" in caplog.text
 
 
 def test_profile_with_no_configured_adapters_runs_cleanly(client: TestClient) -> None:

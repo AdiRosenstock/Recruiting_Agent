@@ -14,6 +14,9 @@ class CompanyResearchRead(BaseModel):
     is_inference: bool
     source_id: uuid.UUID | None
     confidence: float | None
+    # Null for personal_connection rows (deterministic keyword match, no LLM call) -- see
+    # services/llm/prompt_registry.py for what each version actually changed.
+    prompt_version: str | None
     created_at: datetime
 
 

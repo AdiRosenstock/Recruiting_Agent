@@ -39,6 +39,12 @@ class CompanyResearch(Base, UUIDPk, CreatedAtMixin):
         UUID(as_uuid=True), ForeignKey("sources.id"), nullable=True
     )
     confidence: Mapped[float | None] = mapped_column(Float, nullable=True)
+    # Which version of the company-researcher prompt produced this row (see
+    # services/research/llm_researcher.py's PROMPT_VERSION, and services/llm/prompt_registry.py
+    # for the full history) -- null for personal_connection rows, which are deterministic
+    # keyword matches with no LLM call involved. Matches the traceability already kept for
+    # candidate_profiles/outreach_messages; this table was the one gap.
+    prompt_version: Mapped[str | None] = mapped_column(String, nullable=True)
 
     company: Mapped["Company"] = relationship()
     source: Mapped["Source | None"] = relationship()

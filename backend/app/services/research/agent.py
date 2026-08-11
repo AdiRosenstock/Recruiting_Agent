@@ -95,11 +95,20 @@ class CompanyResearchAgent:
         duplicates_skipped = 0
 
         def add_if_new(
-            *, fact_type: str, statement: str, is_inference: bool, confidence: float | None
+            *,
+            fact_type: str,
+            statement: str,
+            is_inference: bool,
+            confidence: float | None,
+            prompt_version: str | None,
         ) -> bool:
             """Returns True if a row was actually added (False if it's an exact duplicate of
             something already on file for this company -- re-running research on an unchanged
-            page shouldn't pile up repeats)."""
+            page shouldn't pile up repeats). `prompt_version` is which run of the LLM prompt (if
+            any -- personal_connection rows are a deterministic keyword match, not LLM output)
+            produced this row; identical statement text still dedups across prompt versions,
+            since the point is "don't repeat what's already known," not "track every version
+            that happened to independently arrive at the same statement."""
             key = (fact_type, statement, is_inference)
             if key in existing_statements:
                 return False
@@ -112,6 +121,7 @@ class CompanyResearchAgent:
                     is_inference=is_inference,
                     source_id=source.id,
                     confidence=confidence,
+                    prompt_version=prompt_version,
                 )
             )
             return True
@@ -124,6 +134,7 @@ class CompanyResearchAgent:
                     statement=fact.statement,
                     is_inference=False,
                     confidence=1.0,
+                    prompt_version=PROMPT_VERSION,
                 ):
                     facts_created += 1
                 else:
@@ -137,6 +148,7 @@ class CompanyResearchAgent:
                     statement=fact.statement,
                     is_inference=True,
                     confidence=0.3,
+                    prompt_version=PROMPT_VERSION,
                 ):
                     inferences_created += 1
                     warnings.append(
@@ -157,6 +169,7 @@ class CompanyResearchAgent:
                 statement=inference.statement,
                 is_inference=True,
                 confidence=None,
+                prompt_version=PROMPT_VERSION,
             ):
                 inferences_created += 1
             else:
@@ -168,6 +181,7 @@ class CompanyResearchAgent:
                 statement=f"Genuine personal connection: {label}.",
                 is_inference=True,
                 confidence=1.0,  # the keyword match itself is deterministic and certain
+                prompt_version=None,  # deterministic keyword match -- no LLM call involved
             ):
                 inferences_created += 1
             else:

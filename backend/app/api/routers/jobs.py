@@ -4,6 +4,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
+from app.core.logging import log_agent_decision
 from app.db.session import get_db
 from app.models.company import Company
 from app.models.fit_score import FitScore
@@ -72,6 +73,15 @@ def score_job(
     )
     db.add(fit_score)
     db.flush()
+
+    log_agent_decision(
+        "job_scored",
+        job_id=str(job_id),
+        profile_id=str(payload.profile_id),
+        overall_score=result.overall_score,
+        tier=result.tier,
+        weights_version=result.weights_version,
+    )
 
     application = get_or_create_application(
         db, candidate_id=payload.candidate_id, job_id=job_id, profile_id=payload.profile_id

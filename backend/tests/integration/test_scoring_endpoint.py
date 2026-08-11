@@ -1,3 +1,4 @@
+import pytest
 from fastapi.testclient import TestClient
 
 
@@ -50,17 +51,19 @@ def _create_job(client: TestClient) -> str:
 
 
 def test_score_job_persists_fit_score_and_links_application(
-    client: TestClient, sample_resume_bytes: bytes
+    client: TestClient, sample_resume_bytes: bytes, caplog: pytest.LogCaptureFixture
 ) -> None:
     candidate_id = _create_candidate_with_skills(client, sample_resume_bytes)
     profile_id = _create_profile(client, candidate_id)
     job_id = _create_job(client)
 
-    score_response = client.post(
-        f"/api/v1/jobs/{job_id}/score",
-        json={"candidate_id": candidate_id, "profile_id": profile_id},
-    )
+    with caplog.at_level("INFO", logger="app.agent_decisions"):
+        score_response = client.post(
+            f"/api/v1/jobs/{job_id}/score",
+            json={"candidate_id": candidate_id, "profile_id": profile_id},
+        )
     assert score_response.status_code == 201, score_response.text
+    assert "job_scored" in caplog.text
     score = score_response.json()
     assert score["candidate_id"] == candidate_id
     assert score["job_id"] == job_id

@@ -7,6 +7,7 @@ from dataclasses import dataclass, field
 
 from sqlalchemy.orm import Session
 
+from app.core.logging import log_agent_decision
 from app.schemas.discovery import DiscoveryQuery
 from app.schemas.search_profile import SearchProfileRead
 from app.services.applications import get_or_create_application
@@ -62,6 +63,20 @@ def run_discovery_for_profile(db: Session, profile: SearchProfileRead) -> Discov
         profile=profile,
         counters=counters,
     )
+
+    # One summary per run (not one log line per company/job -- that would drown a real discovery
+    # run, which can add hundreds of rows, in noise) -- but every run, HTTP-triggered or
+    # scheduler-triggered, since the scheduler has no HTTP response for anyone to see counters
+    # in otherwise. This log line is the only durable record a scheduled run ever produces.
+    log_agent_decision(
+        "discovery_run_completed",
+        profile_id=str(profile.id),
+        profile_key=profile.profile_key,
+        sources_run=counters.sources_run,
+        companies_created=counters.companies_created,
+        jobs_created=counters.jobs_created,
+        warnings_count=len(counters.warnings),
+    )
     return counters
 
 
@@ -81,6 +96,7 @@ def _run_job_board_adapters(
             discovered_jobs = adapter.search_jobs(query)
         except Exception as exc:  # noqa: BLE001 -- one bad source shouldn't fail the whole run
             counters.warnings.append(f"{adapter.name} failed: {exc}")
+            log_agent_decision("discovery_adapter_failed", adapter=adapter.name, error=str(exc))
             continue
 
         for discovered_job in discovered_jobs:
@@ -108,6 +124,7 @@ def _run_company_adapters(
             discovered_companies = adapter.search_companies(query)
         except Exception as exc:  # noqa: BLE001
             counters.warnings.append(f"{adapter.name} failed: {exc}")
+            log_agent_decision("discovery_adapter_failed", adapter=adapter.name, error=str(exc))
             continue
 
         for discovered_company in discovered_companies:
