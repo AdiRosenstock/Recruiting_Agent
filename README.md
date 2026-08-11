@@ -69,6 +69,12 @@ Outreach is always human-approved and human-sent; see the compliance note in the
   via explicit `PATCH /applications/{id}` calls -- an agent only ever *proposes* a transition
   (e.g. outreach generation bumps a fresh application to `REVIEW`), never sends or finalizes one.
 
+**Dashboard (`frontend/`):** a Next.js 16 + TypeScript + React client dashboard -- onboarding
+(create candidate, upload resume), one-click default profile setup, profile tabs with a
+discovery button and a sortable jobs table, and a job detail panel covering everything above:
+fit breakdown, research (run it, FACTS vs. INFERENCES), contacts (add, auto-ranked), outreach
+(generate, edit inline, copy), and the status workflow. See `frontend/README.md`.
+
 ## Prerequisites
 
 - Python 3.12+ (3.11+ also works)
@@ -102,6 +108,19 @@ python3.12 -m venv .venv
 ```
 
 The API is now at `http://localhost:8000` (interactive docs at `/docs`).
+
+### Dashboard
+
+```bash
+cd frontend
+npm install
+npm run dev
+```
+
+Now at `http://localhost:3000` -- open it and follow the onboarding flow (create a candidate,
+optionally upload a resume, create the two default search profiles, run discovery). See
+`frontend/README.md` for details, including the Playwright end-to-end smoke test. Everything
+below this point also works entirely via `curl`/`/docs` if you'd rather skip the UI.
 
 ### Getting from a resume to scored, discovered jobs
 
@@ -182,8 +201,9 @@ OPENAI_API_KEY=sk-...
 ANTHROPIC_API_KEY=sk-ant-...
 ```
 
-`SEARCH_PROVIDER` has only one valid value (`stub`) as of Phase 2 -- no search API key is wired
-up yet; that lands with Phase 3's Company Research Agent.
+`SEARCH_PROVIDER` has only one valid value (`stub`) -- no search API key is wired up yet. The
+Company Research Agent doesn't need one (it works directly from a company's `website` field);
+a real search provider is future work, for companies with no known website on file.
 
 ### Why port 5433?
 
@@ -248,6 +268,9 @@ docker compose exec db psql -U recruiting_agent -d recruiting_agent -c "CREATE D
   `PATCH /applications/{id}` call (see api/routers/applications.py). Outreach generation is the
   one exception that *nudges* status (`DISCOVERED` -> `REVIEW`, since a fresh draft needs human
   eyes), and that's a status meaning "ready for you to look at," not "sent."
+- **The dashboard is plain client components + `fetch`, not RSC data-fetching.** No secrets to
+  keep server-side, nothing cacheable that a separate backend service doesn't already own --
+  Server Actions/`use cache` would be indirection with no benefit here. See `frontend/README.md`.
 - Full architecture, PostgreSQL schema (including tables for later phases), and all three
   phases' plans were reviewed with the user before implementation.
 
@@ -267,5 +290,7 @@ startup, not immediately.
   listing~~, ~~`PATCH /search-profiles/{id}`~~ all done. Still open: Wellfound/VC-portfolio
   `CompanySource` adapters (pending per-source ToS/scraping review); a real `SearchProvider`
   (for companies with no known website).
-- **Phase 5:** the Next.js dashboard; hardening -- fuller agent-decision logging,
-  prompt-version registry, an evaluation harness, deployment packaging.
+- **Phase 5 (in progress):** ~~the Next.js dashboard~~ done (`frontend/`). Still open: fuller
+  agent-decision logging, a prompt-version registry, an evaluation harness, deployment
+  packaging, multi-source `applications` filtering UI (search/sort beyond the current
+  per-profile table).
