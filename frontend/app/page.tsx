@@ -376,6 +376,7 @@ export default function DashboardPage() {
         <JobDetailPanel
           entry={selected}
           profile={selectedProfileForDetail}
+          candidateId={candidate.id}
           onClose={() => setSelected(null)}
           onStatusChange={handleStatusChange}
           onJobUpdated={handleJobUpdated}

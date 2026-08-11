@@ -19,9 +19,14 @@ class OutreachMessageRead(BaseModel):
 
 
 class OutreachMessageUpdate(BaseModel):
-    """Human edits to a drafted message -- flips `is_user_edited` to True."""
+    """Human edits to a drafted message -- flips `is_user_edited` to True.
+    `personalization_rationale` is optional: a plain content edit (fixing a typo, say) has no
+    reason to touch it, but a full hand-rewrite (e.g. discarding a stub placeholder for real,
+    personally-written content) should be able to replace the now-inaccurate rationale that
+    came with the original draft, not leave it dangling and misleading."""
 
     content: str
+    personalization_rationale: str | None = None
 
 
 class OutreachGenerationResult(BaseModel):

@@ -4,9 +4,10 @@ codebase sends this anywhere; sending is always a manual, human action outside t
 """
 
 import uuid
+from datetime import datetime
 from typing import TYPE_CHECKING
 
-from sqlalchemy import Boolean, ForeignKey, String, Text, text
+from sqlalchemy import Boolean, DateTime, ForeignKey, String, Text, text
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -21,6 +22,17 @@ if TYPE_CHECKING:
 
 class OutreachMessage(Base, UUIDPk, TimestampMixin):
     __tablename__ = "outreach_messages"
+
+    # Overrides TimestampMixin's `created_at` (server_default=now(), which Postgres freezes for
+    # the whole enclosing transaction -- multiple messages generated in one request/transaction
+    # would all get the identical timestamp) with `clock_timestamp()`, real wall-clock time that
+    # keeps advancing even within a transaction. Matters here specifically because
+    # api/routers/outreach.py's "latest set of 3" query orders by created_at to find the most
+    # recent generation -- found via a test that creates two generations back-to-back and failed
+    # until this fix (they'd tie under now()).
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=text("clock_timestamp()")
+    )
 
     candidate_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True),

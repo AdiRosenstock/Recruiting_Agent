@@ -5,9 +5,47 @@ from sqlalchemy.orm import Session
 
 from app.db.session import get_db
 from app.models.outreach_message import OutreachMessage
-from app.schemas.outreach_message import OutreachMessageRead, OutreachMessageUpdate
+from app.schemas.outreach_message import (
+    OutreachGenerationResult,
+    OutreachMessageRead,
+    OutreachMessageUpdate,
+)
 
 router = APIRouter(prefix="/api/v1/outreach-messages", tags=["outreach"])
+
+
+@router.get("", response_model=OutreachGenerationResult | None)
+def get_latest_outreach(
+    candidate_id: uuid.UUID, job_id: uuid.UUID, db: Session = Depends(get_db)
+) -> OutreachGenerationResult | None:
+    """The dashboard's job detail panel calls this on load so a previously drafted (and possibly
+    hand-edited) message is actually visible without regenerating it -- `POST /applications/{id}
+    /outreach` always creates a fresh set of three rows rather than updating in place (so
+    generation history isn't lost), which means "the current draft" is really "the latest row
+    per message_type," not a single foreign key. Returns `null` if nothing's been generated yet.
+    """
+    messages = (
+        db.query(OutreachMessage)
+        .filter_by(candidate_id=candidate_id, job_id=job_id)
+        .order_by(OutreachMessage.created_at.desc())
+        .all()
+    )
+    latest_by_type: dict[str, OutreachMessage] = {}
+    for message in messages:
+        latest_by_type.setdefault(message.message_type, message)
+
+    required_types = ("linkedin_full", "linkedin_connection", "email")
+    if not all(t in latest_by_type for t in required_types):
+        return None
+
+    return OutreachGenerationResult(
+        linkedin_full=OutreachMessageRead.model_validate(latest_by_type["linkedin_full"]),
+        linkedin_connection=OutreachMessageRead.model_validate(
+            latest_by_type["linkedin_connection"]
+        ),
+        email=OutreachMessageRead.model_validate(latest_by_type["email"]),
+        warnings=[],
+    )
 
 
 @router.get("/{message_id}", response_model=OutreachMessageRead)
@@ -31,6 +69,8 @@ def edit_outreach_message(
     if message is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Message not found")
     message.content = payload.content
+    if payload.personalization_rationale is not None:
+        message.personalization_rationale = payload.personalization_rationale
     message.is_user_edited = True
     db.commit()
     db.refresh(message)

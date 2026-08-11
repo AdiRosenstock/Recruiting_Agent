@@ -167,6 +167,18 @@ export function generateOutreach(applicationId: string): Promise<OutreachGenerat
   return request(`/api/v1/applications/${applicationId}/outreach`, { method: "POST" });
 }
 
+// The latest set of 3 drafted variants for this (candidate, job) pair, if any were ever
+// generated -- null otherwise. Read-only: unlike generateOutreach, this never creates or
+// changes anything, so the detail panel can call it on open without risking silently
+// overwriting a previously hand-edited draft just to display it.
+export function getLatestOutreach(
+  candidateId: string,
+  jobId: string
+): Promise<OutreachGenerationResult | null> {
+  const params = new URLSearchParams({ candidate_id: candidateId, job_id: jobId });
+  return request(`/api/v1/outreach-messages?${params.toString()}`);
+}
+
 export function editOutreachMessage(messageId: string, content: string) {
   return request(`/api/v1/outreach-messages/${messageId}`, {
     method: "PATCH",

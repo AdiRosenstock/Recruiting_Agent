@@ -129,6 +129,96 @@ def test_edit_outreach_message_flags_user_edited(
     assert edited["is_user_edited"] is True
 
 
+def test_edit_outreach_message_can_replace_the_stale_rationale(
+    client: TestClient, sample_resume_bytes: bytes
+) -> None:
+    """A full hand-rewrite (discarding a stub placeholder for real content) should be able to
+    replace the rationale that came with the original draft too -- otherwise the dashboard keeps
+    showing "no real personalization was performed" next to content that now genuinely is."""
+    application_id = _create_scored_application(client, sample_resume_bytes, outreach_enabled=True)
+    outreach = client.post(f"/api/v1/applications/{application_id}/outreach").json()
+    message_id = outreach["linkedin_full"]["id"]
+
+    edit_response = client.patch(
+        f"/api/v1/outreach-messages/{message_id}",
+        json={"content": "Real content.", "personalization_rationale": "Real rationale."},
+    )
+    assert edit_response.status_code == 200
+    assert edit_response.json()["personalization_rationale"] == "Real rationale."
+
+    # Omitting it entirely (a plain content tweak) must leave the existing rationale alone.
+    second_edit = client.patch(
+        f"/api/v1/outreach-messages/{message_id}", json={"content": "Tweaked content."}
+    )
+    assert second_edit.json()["personalization_rationale"] == "Real rationale."
+
+
+def test_get_latest_outreach_returns_none_before_any_generation(
+    client: TestClient, sample_resume_bytes: bytes
+) -> None:
+    application_id = _create_scored_application(client, sample_resume_bytes, outreach_enabled=True)
+    application = client.get(f"/api/v1/applications/{application_id}").json()
+
+    response = client.get(
+        "/api/v1/outreach-messages",
+        params={
+            "candidate_id": application["candidate_id"],
+            "job_id": application["job_id"],
+        },
+    )
+    assert response.status_code == 200
+    assert response.json() is None
+
+
+def test_get_latest_outreach_reflects_a_hand_edit_without_regenerating(
+    client: TestClient, sample_resume_bytes: bytes
+) -> None:
+    """The dashboard's job detail panel loads this on open -- it has to show what's actually
+    there (including a prior hand edit), not force a fresh regeneration just to view it."""
+    application_id = _create_scored_application(client, sample_resume_bytes, outreach_enabled=True)
+    application = client.get(f"/api/v1/applications/{application_id}").json()
+
+    outreach = client.post(f"/api/v1/applications/{application_id}/outreach").json()
+    message_id = outreach["linkedin_full"]["id"]
+    client.patch(
+        f"/api/v1/outreach-messages/{message_id}", json={"content": "My hand-edited version."}
+    )
+
+    response = client.get(
+        "/api/v1/outreach-messages",
+        params={
+            "candidate_id": application["candidate_id"],
+            "job_id": application["job_id"],
+        },
+    )
+    assert response.status_code == 200
+    latest = response.json()
+    assert latest["linkedin_full"]["content"] == "My hand-edited version."
+    assert latest["linkedin_full"]["is_user_edited"] is True
+    assert latest["linkedin_connection"]["message_type"] == "linkedin_connection"
+    assert latest["email"]["message_type"] == "email"
+
+
+def test_get_latest_outreach_returns_the_newest_generation_not_the_first(
+    client: TestClient, sample_resume_bytes: bytes
+) -> None:
+    application_id = _create_scored_application(client, sample_resume_bytes, outreach_enabled=True)
+    application = client.get(f"/api/v1/applications/{application_id}").json()
+
+    first = client.post(f"/api/v1/applications/{application_id}/outreach").json()
+    second = client.post(f"/api/v1/applications/{application_id}/outreach").json()
+    assert first["linkedin_full"]["id"] != second["linkedin_full"]["id"]
+
+    response = client.get(
+        "/api/v1/outreach-messages",
+        params={
+            "candidate_id": application["candidate_id"],
+            "job_id": application["job_id"],
+        },
+    )
+    assert response.json()["linkedin_full"]["id"] == second["linkedin_full"]["id"]
+
+
 def test_patch_application_404s_for_unknown_id(client: TestClient) -> None:
     fake_id = "00000000-0000-0000-0000-000000000000"
     response = client.patch(f"/api/v1/applications/{fake_id}", json={"status": "ARCHIVED"})

@@ -6,6 +6,7 @@ import {
   createContact,
   editOutreachMessage,
   generateOutreach,
+  getLatestOutreach,
   listContacts,
   listResearch,
   runResearch,
@@ -27,12 +28,14 @@ import { StatusBadge, TierBadge, VisaBadge } from "./Badges";
 export default function JobDetailPanel({
   entry,
   profile,
+  candidateId,
   onClose,
   onStatusChange,
   onJobUpdated,
 }: {
   entry: JobWithScore;
   profile: SearchProfile | undefined;
+  candidateId: string;
   onClose: () => void;
   onStatusChange: (applicationId: string, status: ApplicationStatus) => void;
   onJobUpdated: (job: JobRead) => void;
@@ -79,7 +82,11 @@ export default function JobDetailPanel({
         {profile?.outreach_enabled && (
           <div className="section">
             <h3>Outreach</h3>
-            <OutreachSection applicationId={entry.application_id} />
+            <OutreachSection
+              applicationId={entry.application_id}
+              candidateId={candidateId}
+              jobId={entry.job.id}
+            />
           </div>
         )}
 
@@ -339,12 +346,49 @@ function ContactsSection({ companyId }: { companyId: string }) {
   );
 }
 
-function OutreachSection({ applicationId }: { applicationId: string }) {
+function OutreachSection({
+  applicationId,
+  candidateId,
+  jobId,
+}: {
+  applicationId: string;
+  candidateId: string;
+  jobId: string;
+}) {
   const [result, setResult] = useState<OutreachGenerationResult | null>(null);
+  const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // Load whatever was already drafted (including a prior hand edit) on open -- generating is a
+  // separate, explicit action, not something opening the drawer should trigger or overwrite.
+  useEffect(() => {
+    let cancelled = false;
+    getLatestOutreach(candidateId, jobId)
+      .then((loaded) => {
+        if (!cancelled) setResult(loaded);
+      })
+      .catch((err) => {
+        if (!cancelled) {
+          setError(err instanceof Error ? err.message : "Failed to load outreach.");
+        }
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [candidateId, jobId]);
+
   async function handleGenerate() {
+    // Regenerating creates a fresh set of three drafts (and any hand edits on the current ones
+    // stop being "the latest" shown, even though the old rows aren't deleted) -- confirm first
+    // rather than silently discarding what's on screen, which is exactly what this UI used to
+    // do with no warning at all.
+    if (result && !window.confirm("Generate a new draft? Your current draft won't be shown anymore (it isn't deleted, just no longer the latest).")) {
+      return;
+    }
     setBusy(true);
     setError(null);
     try {
@@ -355,6 +399,8 @@ function OutreachSection({ applicationId }: { applicationId: string }) {
       setBusy(false);
     }
   }
+
+  if (loading) return <p className="muted">Loading…</p>;
 
   return (
     <>
@@ -370,9 +416,17 @@ function OutreachSection({ applicationId }: { applicationId: string }) {
           <p className="muted" style={{ marginTop: 10 }}>
             {result.linkedin_full.personalization_rationale}
           </p>
-          <MessageVariant label="LinkedIn message" message={result.linkedin_full} />
-          <MessageVariant label="Connection note" message={result.linkedin_connection} />
-          <MessageVariant label="Email" message={result.email} />
+          <MessageVariant
+            key={result.linkedin_full.id}
+            label="LinkedIn message"
+            message={result.linkedin_full}
+          />
+          <MessageVariant
+            key={result.linkedin_connection.id}
+            label="Connection note"
+            message={result.linkedin_connection}
+          />
+          <MessageVariant key={result.email.id} label="Email" message={result.email} />
         </>
       )}
     </>
