@@ -9,9 +9,11 @@ from app.schemas.discovery import DiscoveredCompany, DiscoveredJob, DiscoveryQue
 
 
 class CompanySource(Protocol):
-    """Company-first discovery. Not yet implemented by any adapter this phase -- YC/Wellfound/
-    VC-portfolio adapters land in Phase 2b/4 once their ToS/scraping feasibility is checked
-    per-source (see the Phase 1 plan's risk notes)."""
+    """Company-first discovery -- see `YCDirectorySource` for the first real implementation.
+    Wellfound/VC-portfolio adapters are still future work, pending their ToS/scraping
+    feasibility being checked per-source (see the Phase 1 plan's risk notes). `get_jobs()` is
+    allowed to legitimately return `[]` when a source has no per-company job data -- never
+    fabricate a job posting/URL that doesn't exist to satisfy the interface."""
 
     name: str
 

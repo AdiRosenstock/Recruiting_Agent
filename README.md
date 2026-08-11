@@ -29,10 +29,15 @@ Outreach is always human-approved and human-sent; see the compliance note in the
 **Phase 2 -- search profiles, discovery, fit scoring:**
 - `search_profiles`: one row per agent (see above), holding its own `config` (role/stage/
   location filters, fit-score weight overrides) and `outreach_enabled` flag.
-- Discovery adapters (`services/discovery/`), both real and network-verified against live data:
-  `HNWhoIsHiringSource` (HN's public "who is hiring" thread, for `startup_outreach`) and
-  `GitHubNewGradListSource` (a public new-grad tracker repo's README, for `new_grad_2027`). Both
-  need no login/API key and are entirely deterministic (regex/HTML parsing, no LLM call).
+- Discovery adapters (`services/discovery/`), real and network-verified against live data, all
+  needing no login/API key and entirely deterministic (regex/HTML/JSON parsing, no LLM call):
+  `HNWhoIsHiringSource` (HN's public "who is hiring" thread) and `YCDirectorySource` (YC's
+  public company directory dataset) for `startup_outreach`; `GitHubNewGradListSource` (a public
+  new-grad tracker repo's README) for `new_grad_2027`. Two discovery *patterns* exist --
+  `JobBoardSource` (posting-first: HN, GitHub) and `CompanySource` (company-first: YC) -- a
+  profile can run both kinds at once (see `api/routers/discovery.py`). `YCDirectorySource` is
+  deliberately company-only: YC's public dataset has no per-company job postings (only an
+  `isHiring` flag), so `get_jobs()` always returns `[]` rather than fabricating a job URL.
   Company/job dedup goes through `CompanyJobUpsertService`.
 - A deterministic, explainable `FitScorer` (`services/scoring/`) -- seven independently
   unit-testable components (technical/role/AI-data/experience/stage/location/domain match),
@@ -248,10 +253,11 @@ docker compose exec db psql -U recruiting_agent -d recruiting_agent -c "CREATE D
 
 ## Roadmap
 
-- **Phase 4:** additional discovery adapters (YC, Wellfound, VC portfolios) behind
-  `CompanySource`, once their ToS/scraping feasibility is checked per-source; a real
-  `SearchProvider` (for companies with no known website yet); a simple scheduler (APScheduler)
-  for periodic re-runs; an `applications` listing/filter endpoint for the future dashboard.
+- **Phase 4 (in progress):** ~~YC company directory~~ done; still open: Wellfound/VC-portfolio
+  `CompanySource` adapters (pending per-source ToS/scraping review); a real `SearchProvider`
+  (for companies with no known website); a scheduler for periodic re-runs; an `applications`
+  listing/filter endpoint for the future dashboard; a `PATCH /search-profiles/{id}` endpoint so
+  weights/filters can be tuned without re-seeding.
 - **Phase 5:** the Next.js dashboard itself; hardening -- fuller agent-decision logging,
   prompt-version registry, configurable scoring-weights UI, an evaluation harness, deployment
   packaging.
