@@ -165,6 +165,9 @@ def _job(
         source_id=None,
         date_discovered=datetime.now(UTC),
         date_last_checked=None,
+        visa_sponsorship=None,
+        visa_sponsorship_evidence=None,
+        visa_sponsorship_checked_at=None,
     )
 
 

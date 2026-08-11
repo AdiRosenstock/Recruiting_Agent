@@ -12,6 +12,7 @@ import type {
   CompanyResearchRead,
   ContactRead,
   DiscoveryRunResult,
+  JobRead,
   JobWithScore,
   OutreachGenerationResult,
   SearchProfile,
@@ -105,6 +106,13 @@ export function scoreJob(jobId: string, candidateId: string, profileId: string) 
     method: "POST",
     body: JSON.stringify({ candidate_id: candidateId, profile_id: profileId }),
   });
+}
+
+// Deterministic keyword scan (see backend services/visa_sponsorship.py) -- a lead to verify on
+// the actual posting, never a confirmed fact. Only fetches the live posting page when there's
+// no description already on file to search.
+export function checkVisaSponsorship(jobId: string): Promise<JobRead> {
+  return request(`/api/v1/jobs/${jobId}/check-visa-sponsorship`, { method: "POST" });
 }
 
 // --- Company research ---

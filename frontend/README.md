@@ -29,17 +29,18 @@ CORS is already configured for `http://localhost:3000` on the backend side.
   profiles (mirrors `backend/scripts/seed_profiles.py` exactly), so a fresh candidate doesn't
   need the Python script at all.
 - **Dashboard** (`app/page.tsx` + `components/JobsTable.tsx`): profile tabs, a "Run discovery"
-  button, and a sortable table of every job tracked under the active profile (fit score, stage,
-  location, status).
+  button, and a table of every job tracked under the active profile -- sortable on any column
+  (fit score, stage, location, visa status, ...), plus client-side location/visa filters.
 - **All Applications** (`components/ApplicationsTable.tsx`): a cross-profile tab alongside the
   per-profile ones -- every application regardless of which profile found it, with a free-text
-  search (job title/company), a status filter, and click-to-sort columns. Backed by `GET
-  /api/v1/applications`'s `q`/`status`/`profile_id` params.
+  search (job title/company, server-side via `GET /api/v1/applications`'s `q`/`status` params)
+  plus client-side location/visa filters and click-to-sort columns, same as the per-profile table.
 - **Job detail panel** (`components/JobDetailPanel.tsx`): fit-score breakdown (strengths/gaps),
-  company info, research (run it, see FACTS vs. INFERENCES separated), contacts (add one,
-  ranked by the backend's priority logic), outreach (generate all three variants, edit inline,
-  copy to clipboard), and the status workflow dropdown -- this is where every "human approval"
-  action from the spec actually happens.
+  company info, visa sponsorship (a deterministic signal -- check/re-check it for one job),
+  research (run it, see FACTS vs. INFERENCES separated), contacts (add one, ranked by the
+  backend's priority logic), outreach (generate all three variants, edit inline, copy to
+  clipboard), and the status workflow dropdown -- this is where every "human approval" action
+  from the spec actually happens.
 
 The candidate id is kept in `localStorage` (this is a single-user personal tool, not a
 multi-tenant app -- there's no login).

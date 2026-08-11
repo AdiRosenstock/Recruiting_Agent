@@ -45,6 +45,9 @@ class JobRead(BaseModel):
     source_id: uuid.UUID | None
     date_discovered: datetime
     date_last_checked: datetime | None
+    visa_sponsorship: str | None
+    visa_sponsorship_evidence: str | None
+    visa_sponsorship_checked_at: datetime | None
 
 
 class JobWithScore(BaseModel):

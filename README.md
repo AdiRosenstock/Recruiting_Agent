@@ -43,7 +43,12 @@ Outreach is always human-approved and human-sent; see the compliance note in the
   unit-testable components (technical/role/AI-data/experience/stage/location/domain match),
   weighted-summed into a 0-100 score with a tier and human-readable strengths/gaps. No LLM call.
   Never hard-rejects for a job asking slightly more experience than the candidate has; a missing
-  personal connection is neutral, never scored as a weakness.
+  personal connection is neutral, never scored as a weakness. `technical_match` falls back to a
+  word-boundary scan of the job title/description for the candidate's own skill names when a
+  source has no structured `technologies` list (e.g. `GitHubNewGradListSource`, which only ever
+  captures Company/Role/Location/Link/Date) -- found via live data that a flat neutral score for
+  every such job, regardless of what it actually was, was producing a wall of identical overall
+  scores across hundreds of postings.
 - A `SearchProvider` abstraction (`services/search/`) with a real, no-API-key implementation --
   `DuckDuckGoSearchProvider` uses DuckDuckGo's plain HTML results page (the same no-JS endpoint
   it serves browsers with JavaScript disabled). Company Research primarily works directly off a
@@ -75,12 +80,23 @@ Outreach is always human-approved and human-sent; see the compliance note in the
   `DISCOVERED -> ... -> REVIEW -> READY_TO_CONTACT -> CONTACTED -> RESPONDED -> ...` entirely
   via explicit `PATCH /applications/{id}` calls -- an agent only ever *proposes* a transition
   (e.g. outreach generation bumps a fresh application to `REVIEW`), never sends or finalizes one.
+- **Visa sponsorship signal** (`services/visa_sponsorship.py` + `services/visa_check.py`):
+  deterministic keyword scan (same philosophy as `domain_connections.py` -- a fixed phrase list,
+  never an LLM guess) for whether a posting mentions sponsorship either way. Scans the listing
+  text already on file first; only fetches the live posting page when there's nothing there to
+  search (e.g. `GitHubNewGradListSource` jobs, which never have a description). `POST
+  /api/v1/jobs/{id}/check-visa-sponsorship` for one job at a time (the dashboard's button);
+  `scripts/check_visa_sponsorship.py` to run it across every job under a profile. Always a lead
+  to verify on the real posting -- stored with the literal matched phrase as evidence, never
+  presented as a confirmed fact.
 
 **Dashboard (`frontend/`):** a Next.js 16 + TypeScript + React client dashboard -- onboarding
 (create candidate, upload resume), one-click default profile setup, profile tabs with a
-discovery button and a sortable jobs table, and a job detail panel covering everything above:
-fit breakdown, research (run it, FACTS vs. INFERENCES), contacts (add, auto-ranked), outreach
-(generate, edit inline, copy), and the status workflow. See `frontend/README.md`.
+discovery button and a sortable/filterable (location, visa sponsorship) jobs table, a
+cross-profile "All Applications" tab (search, status/location/visa filters, sortable columns),
+and a job detail panel covering everything above: fit breakdown, visa sponsorship (check it),
+research (run it, FACTS vs. INFERENCES), contacts (add, auto-ranked), outreach (generate, edit
+inline, copy), and the status workflow. See `frontend/README.md`.
 
 ## Prerequisites
 
@@ -165,6 +181,16 @@ curl -s "http://localhost:8000/api/v1/search-profiles/<profile-id>/jobs"
 
 Companies/jobs can also be added manually: `POST /api/v1/companies`, then `POST
 /api/v1/companies/{id}/jobs`.
+
+Scoring one job at a time via `/score` (or the dashboard's per-row "Score" button) is fine for
+what you just looked at; after a discovery run adds a few hundred at once,
+`scripts/batch_score.py` scores everything unscored under a profile (or every profile for a
+candidate) in one pass instead of one request per job:
+
+```bash
+.venv/bin/python scripts/batch_score.py --candidate-id $CAND_ID
+.venv/bin/python scripts/batch_score.py --profile-id <profile-id> --rescore   # after a scoring-logic change
+```
 
 ### From a scored job to a drafted, human-reviewed outreach message
 
@@ -388,3 +414,8 @@ frontend in a real browser against it with zero console errors.
   actions in the system with no durable trail at all; see "Agent-decision logging" above),
   ~~a prompt-version registry~~ (`services/llm/prompt_registry.py`, see "Prompt-version
   registry" above) all done.
+- **Post-roadmap, user-requested:** location + visa-sponsorship filtering on both the per-profile
+  and cross-profile job tables; a deterministic visa-sponsorship signal (see above); a
+  `technical_match` scoring fallback for sources with no structured tech list, found live after
+  batch-scoring produced a wall of identical scores for ~227 of 389 real jobs;
+  `scripts/batch_score.py` for scoring hundreds of newly-discovered jobs in one pass.

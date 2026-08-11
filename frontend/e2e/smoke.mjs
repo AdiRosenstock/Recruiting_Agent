@@ -107,10 +107,20 @@ await page.waitForSelector(".filter-bar", { timeout: 10000 });
 await page.waitForTimeout(500);
 await shot("12-all-applications");
 
-await page.locator('input[type="search"]').fill("engineer");
+const jobCompanySearch = page.locator(
+  'input[aria-label="Search applications by job title or company"]'
+);
+await jobCompanySearch.fill("engineer");
 await page.waitForTimeout(600); // debounced search
 await shot("13-all-applications-search");
-await page.locator('input[type="search"]').fill("");
+await jobCompanySearch.fill("");
+
+console.log("filtering by location and visa status");
+await page.locator('input[aria-label="Filter by location"]').fill("New York");
+await page.waitForTimeout(300);
+await shot("13b-all-applications-location-filter");
+await page.locator('select[aria-label="Filter by visa sponsorship status"]').selectOption("");
+await page.locator('input[aria-label="Filter by location"]').fill("");
 
 await page.locator("th.sortable").first().click();
 await page.waitForTimeout(300);
@@ -121,6 +131,17 @@ if (await firstAppRow.isVisible().catch(() => false)) {
   await firstAppRow.click();
   await page.waitForSelector(".drawer", { timeout: 10000 });
   await shot("15-all-applications-detail");
+
+  console.log("checking visa sponsorship for the selected job");
+  const visaButton = page.locator(
+    '.drawer button:has-text("Check visa sponsorship"), .drawer button:has-text("Re-check")'
+  );
+  if (await visaButton.isVisible().catch(() => false)) {
+    await visaButton.click();
+    await page.waitForTimeout(2000);
+    await shot("16-visa-checked");
+  }
+
   await page.locator(".drawer-close").click();
 }
 

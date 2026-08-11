@@ -47,6 +47,8 @@ export interface CompanyRead {
   employee_count: number | null;
 }
 
+export type VisaSponsorshipSignal = "likely_sponsors" | "likely_no_sponsorship";
+
 export interface JobRead {
   id: string;
   company_id: string;
@@ -58,6 +60,9 @@ export interface JobRead {
   work_mode: string | null;
   deadline_date: string | null;
   status: string;
+  visa_sponsorship: VisaSponsorshipSignal | null;
+  visa_sponsorship_evidence: string | null;
+  visa_sponsorship_checked_at: string | null;
 }
 
 export type FitTier = "excellent" | "strong" | "worth_reviewing" | "weak" | "ignore";

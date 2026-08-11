@@ -19,6 +19,7 @@ import type {
   ApplicationStatus,
   ApplicationWithDetails,
   CandidateProfile,
+  JobRead,
   JobWithScore,
   SearchProfile,
 } from "@/lib/types";
@@ -233,6 +234,12 @@ export default function DashboardPage() {
     );
   }
 
+  function handleJobUpdated(job: JobRead) {
+    setJobs((prev) => prev.map((j) => (j.job.id === job.id ? { ...j, job } : j)));
+    setApplications((prev) => prev.map((a) => (a.job.id === job.id ? { ...a, job } : a)));
+    setSelected((prev) => (prev && prev.job.id === job.id ? { ...prev, job } : prev));
+  }
+
   function handleSelectApplication(row: ApplicationWithDetails) {
     setSelectedProfileForDetail(profiles.find((p) => p.id === row.profile_id));
     setSelected(toJobWithScore(row));
@@ -322,9 +329,7 @@ export default function DashboardPage() {
                     </option>
                   ))}
                 </select>
-                <span className="muted">
-                  {applicationsLoading ? "Loading…" : `${applications.length} matching`}
-                </span>
+                <span className="muted">{applicationsLoading ? "Loading…" : null}</span>
               </div>
               <ApplicationsTable
                 applications={applications}
@@ -335,9 +340,7 @@ export default function DashboardPage() {
           ) : (
             <div className="panel">
               <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 12 }}>
-                <span className="muted">
-                  {jobsLoading ? "Loading…" : `${jobs.length} tracked`}
-                </span>
+                <span className="muted">{jobsLoading ? "Loading…" : null}</span>
                 <button className="primary" onClick={handleRunDiscovery} disabled={discoveryBusy}>
                   {discoveryBusy ? "Running discovery…" : "Run discovery"}
                 </button>
@@ -360,6 +363,7 @@ export default function DashboardPage() {
           profile={selectedProfileForDetail}
           onClose={() => setSelected(null)}
           onStatusChange={handleStatusChange}
+          onJobUpdated={handleJobUpdated}
         />
       )}
     </div>

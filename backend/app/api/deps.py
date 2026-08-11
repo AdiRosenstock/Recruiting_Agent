@@ -39,3 +39,7 @@ def get_research_agent(settings: Settings = Depends(get_settings)) -> CompanyRes
 
 def get_outreach_agent(settings: Settings = Depends(get_settings)) -> OutreachMessageAgent:
     return OutreachMessageAgent(writer=LLMOutreachWriter(), llm_provider=get_llm_provider(settings))
+
+
+def get_page_fetcher() -> PageFetcher:
+    return PageFetcher()

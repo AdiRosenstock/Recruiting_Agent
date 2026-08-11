@@ -228,6 +228,14 @@ th.sortable:hover {
   color: var(--text-dim);
   border: 1px solid var(--border);
 }
+.badge-visa-yes {
+  background: color-mix(in srgb, var(--excellent) 25%, transparent);
+  color: var(--excellent);
+}
+.badge-visa-no {
+  background: color-mix(in srgb, var(--weak) 25%, transparent);
+  color: var(--weak);
+}
 
 .drawer-backdrop {
   position: fixed;

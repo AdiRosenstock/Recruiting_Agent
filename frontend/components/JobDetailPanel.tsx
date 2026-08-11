@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import {
+  checkVisaSponsorship,
   createContact,
   editOutreachMessage,
   generateOutreach,
@@ -15,23 +16,26 @@ import {
   type ApplicationStatus,
   type CompanyResearchRead,
   type ContactRead,
+  type JobRead,
   type JobWithScore,
   type OutreachGenerationResult,
   type OutreachMessageRead,
   type SearchProfile,
 } from "@/lib/types";
-import { StatusBadge, TierBadge } from "./Badges";
+import { StatusBadge, TierBadge, VisaBadge } from "./Badges";
 
 export default function JobDetailPanel({
   entry,
   profile,
   onClose,
   onStatusChange,
+  onJobUpdated,
 }: {
   entry: JobWithScore;
   profile: SearchProfile | undefined;
   onClose: () => void;
   onStatusChange: (applicationId: string, status: ApplicationStatus) => void;
+  onJobUpdated: (job: JobRead) => void;
 }) {
   return (
     <>
@@ -55,6 +59,11 @@ export default function JobDetailPanel({
         <div className="section">
           <h3>Company</h3>
           <CompanyInfo entry={entry} />
+        </div>
+
+        <div className="section">
+          <h3>Visa sponsorship</h3>
+          <VisaSection job={entry.job} onJobUpdated={onJobUpdated} />
         </div>
 
         <div className="section">
@@ -130,6 +139,52 @@ function CompanyInfo({ entry }: { entry: JobWithScore }) {
           </a>
         </p>
       )}
+    </>
+  );
+}
+
+function VisaSection({
+  job,
+  onJobUpdated,
+}: {
+  job: JobRead;
+  onJobUpdated: (job: JobRead) => void;
+}) {
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function handleCheck() {
+    setBusy(true);
+    setError(null);
+    try {
+      onJobUpdated(await checkVisaSponsorship(job.id));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Check failed.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <>
+      <p>
+        <VisaBadge signal={job.visa_sponsorship} />
+      </p>
+      {job.visa_sponsorship_evidence && (
+        <p className="muted">Matched: {job.visa_sponsorship_evidence}</p>
+      )}
+      <p className="muted">
+        A deterministic keyword scan of the posting text -- a lead to verify on the actual
+        listing, never a confirmed fact.
+      </p>
+      {error && <div className="error-banner">{error}</div>}
+      <button onClick={handleCheck} disabled={busy}>
+        {busy
+          ? "Checking…"
+          : job.visa_sponsorship_checked_at
+            ? "Re-check"
+            : "Check visa sponsorship"}
+      </button>
     </>
   );
 }

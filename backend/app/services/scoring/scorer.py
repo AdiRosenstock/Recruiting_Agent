@@ -56,6 +56,14 @@ def _normalize_skill(name: str) -> str:
     return _SKILL_SYNONYMS.get(lowered, lowered)
 
 
+def _find_skills_in_text(skills: set[str], text: str) -> set[str]:
+    """Word-boundary match, not a naive substring check -- several normalized skill names are
+    short enough (`r`, `go`) that `skill in text.lower()` would match constantly on unrelated
+    words ("go" inside "going"/"background", "r" inside almost anything)."""
+    lowered = text.lower()
+    return {skill for skill in skills if re.search(rf"\b{re.escape(skill)}\b", lowered)}
+
+
 def _tier_for(overall_score: float) -> Tier:
     for threshold, tier in _TIER_THRESHOLDS:
         if overall_score >= threshold:
@@ -129,6 +137,26 @@ class FitScorer:
         candidate_skills = {_normalize_skill(s.skill_name) for s in candidate.skills if s.verified}
         job_skills = {_normalize_skill(t) for t in job.technologies}
         if not job_skills:
+            # No structured tech list (common for lightweight sources that only capture
+            # Company/Role/Location/Link/Date, e.g. GitHubNewGradListSource) -- a flat neutral
+            # score here for *every* such job, regardless of what the job actually is, is
+            # exactly what produced a wall of identical overall_scores in practice. Fall back to
+            # scanning the title/description text for the candidate's own skill names instead of
+            # giving up on differentiating these jobs at all.
+            text_hits = _find_skills_in_text(
+                candidate_skills, f"{job.title} {job.description or ''}"
+            )
+            if text_hits:
+                # 0.5 (the "no signal" neutral score just below) is the floor, not something a
+                # real match can score below -- finding an actual skill mention must never look
+                # worse than knowing nothing at all.
+                return FitScoreComponent(
+                    score=min(0.5 + len(text_hits) * 0.25, 1.0),
+                    explanation=(
+                        f"Skills mentioned in the job title/description (no structured tech "
+                        f"list on file): {', '.join(sorted(text_hits))}."
+                    ),
+                )
             return FitScoreComponent(
                 score=0.5, explanation="Job listed no specific technologies to compare against."
             )

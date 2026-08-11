@@ -4,6 +4,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
+from app.api.deps import get_page_fetcher
 from app.core.logging import log_agent_decision
 from app.db.session import get_db
 from app.models.company import Company
@@ -16,7 +17,9 @@ from app.schemas.job import JobRead
 from app.schemas.search_profile import SearchProfileRead
 from app.services.applications import get_or_create_application
 from app.services.candidate_reader import get_candidate_profile
+from app.services.research.fetcher import PageFetcher
 from app.services.scoring.scorer import FitScorer
+from app.services.visa_check import check_job_visa_sponsorship
 
 router = APIRouter(prefix="/api/v1/jobs", tags=["jobs"])
 
@@ -91,3 +94,23 @@ def score_job(
     db.commit()
     db.refresh(fit_score)
     return FitScoreRead.model_validate(fit_score)
+
+
+@router.post("/{job_id}/check-visa-sponsorship", response_model=JobRead)
+def check_visa_sponsorship(
+    job_id: uuid.UUID,
+    db: Session = Depends(get_db),
+    fetcher: PageFetcher = Depends(get_page_fetcher),
+) -> JobRead:
+    """Deterministic keyword scan (see services/visa_sponsorship.py) for whether the posting
+    mentions visa sponsorship either way -- a lead to verify on the actual posting, never a
+    confirmed fact. Only fetches the live posting page when there's no description already on
+    file to search (see services/visa_check.py)."""
+    job = db.get(Job, job_id)
+    if job is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Job not found")
+
+    check_job_visa_sponsorship(job, fetcher=fetcher)
+    db.commit()
+    db.refresh(job)
+    return JobRead.model_validate(job)

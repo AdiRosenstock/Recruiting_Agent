@@ -59,6 +59,15 @@ class Job(Base, UUIDPk, TimestampMixin):
     source_id: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True), ForeignKey("sources.id"), nullable=True
     )
+    # likely_sponsors | likely_no_sponsorship | null (never checked, or checked and no known
+    # phrasing found either way -- see services/visa_sponsorship.py). A deterministic keyword
+    # signal, not a confirmed fact -- always paired with `visa_sponsorship_evidence`, the
+    # literal matched phrase, so it can be verified against the actual posting.
+    visa_sponsorship: Mapped[str | None] = mapped_column(String, nullable=True)
+    visa_sponsorship_evidence: Mapped[str | None] = mapped_column(Text, nullable=True)
+    visa_sponsorship_checked_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
     date_discovered: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=func.now()
     )

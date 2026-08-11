@@ -89,6 +89,9 @@ def make_job(
         source_id=None,
         date_discovered=datetime.now(UTC),
         date_last_checked=None,
+        visa_sponsorship=None,
+        visa_sponsorship_evidence=None,
+        visa_sponsorship_checked_at=None,
     )
 
 
@@ -152,6 +155,35 @@ def test_technical_match_ignores_unverified_skills() -> None:
     job = make_job(technologies=["Python"])
     component = FitScorer._technical_match(candidate, job)
     assert component.score == 0.0
+
+
+def test_technical_match_falls_back_to_title_when_no_technologies_listed() -> None:
+    """Found via live data (a lightweight source, e.g. the GitHub new-grad tracker, that never
+    populates `technologies`): every such job used to get the same flat 0.5, regardless of what
+    it actually was. Should differentiate using the title/description instead of giving up."""
+    candidate = make_candidate(skills=[make_skill("python"), make_skill("sql")])
+    job = make_job(title="Python Backend Engineer, New Grad", technologies=[])
+    component = FitScorer._technical_match(candidate, job)
+    assert component.score > 0.5
+    assert "python" in component.explanation.lower()
+
+
+def test_technical_match_word_boundary_avoids_false_positives() -> None:
+    """`go` and `r` are real (normalized) skill names -- must not match inside "going" or
+    "recruiter" just because the substring happens to appear."""
+    candidate = make_candidate(skills=[make_skill("go"), make_skill("r")])
+    job = make_job(
+        title="Recruiter", description="We are going to interview soon.", technologies=[]
+    )
+    component = FitScorer._technical_match(candidate, job)
+    assert component.score == 0.5  # no real match -- falls back to the flat neutral score
+
+
+def test_technical_match_falls_back_to_flat_score_with_no_text_signal_either() -> None:
+    candidate = make_candidate(skills=[make_skill("python")])
+    job = make_job(title="Product Manager", description=None, technologies=[])
+    component = FitScorer._technical_match(candidate, job)
+    assert component.score == 0.5
 
 
 def test_role_match_scores_title_hit_highest() -> None:
