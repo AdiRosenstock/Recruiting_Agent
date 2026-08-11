@@ -46,13 +46,15 @@ class CompanyJobUpsertService:
         """Returns `(company, created)` -- `created=False` means an existing company (matched by
         `normalized_name` + `website`) was refreshed rather than inserted."""
         normalized = normalize_company_name(discovered.name)
-        existing = (
-            self._db.query(Company)
-            .filter_by(normalized_name=normalized, website=discovered.website)
-            .one_or_none()
-        )
+        existing = self._find_existing_company(normalized, discovered.website)
         if existing is not None:
             existing.date_last_checked = datetime.now(UTC)
+            if not existing.website and discovered.website:
+                # Upgrade, not overwrite: this is the same company being seen again with a
+                # website now known where it wasn't before (see _find_existing_company) -- never
+                # the reverse, an already-known website is never cleared just because this
+                # particular sighting doesn't have one.
+                existing.website = discovered.website
             self._backfill(existing, discovered)
             company, created = existing, False
         else:
@@ -101,6 +103,30 @@ class CompanyJobUpsertService:
         self._db.add(job)
         self._db.flush()
         return job, True, company_created
+
+    def _find_existing_company(self, normalized_name: str, website: str | None) -> Company | None:
+        """The same company routinely gets discovered once with no known website (e.g. a bare
+        HN "Who is hiring?" posting) and again with one (e.g. the YC directory) -- naive
+        `(normalized_name, website)` dedup treats `website=None` and `website='https://...'` as
+        two different companies, since SQL NULL never equals anything, including another NULL
+        compared against a real value. That produced real duplicate rows in practice (found by
+        inspecting live discovery data, not a hypothetical). Exact match first (also handles two
+        genuinely distinct companies that happen to share a normalized name but have different
+        known websites -- they must NOT get merged); falls back to matching on name alone
+        against any existing row whose website is compatible (either side unset, or identical).
+        """
+        exact = (
+            self._db.query(Company)
+            .filter_by(normalized_name=normalized_name, website=website)
+            .one_or_none()
+        )
+        if exact is not None:
+            return exact
+        candidates = self._db.query(Company).filter_by(normalized_name=normalized_name).all()
+        for candidate in candidates:
+            if candidate.website is None or website is None or candidate.website == website:
+                return candidate
+        return None
 
     @staticmethod
     def _backfill(company: Company, discovered: DiscoveredCompany) -> None:

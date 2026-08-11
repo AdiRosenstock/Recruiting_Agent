@@ -64,6 +64,59 @@ def test_upsert_company_backfills_blank_fields_without_overwriting(db_session: S
     assert company3.industry == "Fintech"
 
 
+def test_upsert_company_merges_a_later_sighting_that_has_a_website(db_session: Session) -> None:
+    """Found via inspecting live discovery data (not hypothetical): the same company discovered
+    once with no known website (e.g. a bare HN posting) and again with one (e.g. the YC
+    directory) used to create two separate rows, since naive `(normalized_name, website)` dedup
+    treats `website=None` and a real URL as different companies -- SQL NULL never equals
+    anything, including another NULL compared against a value."""
+    service = CompanyJobUpsertService(db_session)
+    first, created1 = service.upsert_company(_discovered_company(name="Titan", website=None))
+    second, created2 = service.upsert_company(
+        _discovered_company(name="Titan", website="https://titan.example")
+    )
+
+    assert created1 is True
+    assert created2 is False
+    assert second.id == first.id
+    assert second.website == "https://titan.example"  # upgraded, not left null
+
+
+def test_upsert_company_merges_a_later_sighting_with_no_website_into_the_known_one(
+    db_session: Session,
+) -> None:
+    """The reverse order of the above: website known first, then a sighting with none -- must
+    reuse the richer existing row, and must never clear its already-known website."""
+    service = CompanyJobUpsertService(db_session)
+    first, created1 = service.upsert_company(
+        _discovered_company(name="Titan", website="https://titan.example")
+    )
+    second, created2 = service.upsert_company(_discovered_company(name="Titan", website=None))
+
+    assert created1 is True
+    assert created2 is False
+    assert second.id == first.id
+    assert second.website == "https://titan.example"  # not cleared
+
+
+def test_upsert_company_keeps_distinct_companies_with_different_known_websites_separate(
+    db_session: Session,
+) -> None:
+    """Two different real companies that happen to share a normalized name (e.g. two "Titan"s)
+    must NOT get merged just because the merge-on-name-alone fallback exists -- only sightings
+    that are actually compatible (one side unset, or an identical website) should merge."""
+    service = CompanyJobUpsertService(db_session)
+    first, _ = service.upsert_company(
+        _discovered_company(name="Titan", website="https://titan-robotics.example")
+    )
+    second, created2 = service.upsert_company(
+        _discovered_company(name="Titan", website="https://titan-finance.example")
+    )
+
+    assert created2 is True
+    assert second.id != first.id
+
+
 def test_upsert_job_dedups_by_job_url(db_session: Session) -> None:
     service = CompanyJobUpsertService(db_session)
     job1, job_created1, _ = service.upsert_job(_discovered_job())
