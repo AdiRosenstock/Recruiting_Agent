@@ -87,32 +87,34 @@ def list_profile_jobs(profile_id: uuid.UUID, db: Session = Depends(get_db)) -> l
     """Every job tracked under this profile (via its `applications` row -- see
     services/applications.py), highest fit score first. Jobs discovered but not yet scored come
     back with `fit_score: null` rather than being omitted, so nothing found silently disappears.
+
+    One joined query, not one-plus-three-per-application -- this list can run into the hundreds
+    (a single discovery run against the YC directory alone can add 100 companies), so avoiding
+    an N+1 round-trip pattern here actually matters, unlike most other endpoints in this app.
     """
     if db.get(SearchProfile, profile_id) is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail="Search profile not found"
         )
 
-    applications = db.query(Application).filter_by(profile_id=profile_id).all()
+    rows = (
+        db.query(Application, Job, Company, FitScore)
+        .join(Job, Application.job_id == Job.id)
+        .join(Company, Job.company_id == Company.id)
+        .outerjoin(FitScore, Application.fit_score_id == FitScore.id)
+        .filter(Application.profile_id == profile_id)
+        .all()
+    )
 
-    results: list[JobWithScore] = []
-    for application in applications:
-        job = db.get(Job, application.job_id)
-        if job is None:
-            continue
-        company = db.get(Company, job.company_id)
-        if company is None:
-            continue
-        fit_score = db.get(FitScore, application.fit_score_id) if application.fit_score_id else None
-        results.append(
-            JobWithScore(
-                application_id=application.id,
-                application_status=application.status,
-                job=JobRead.model_validate(job),
-                company=CompanyRead.model_validate(company),
-                fit_score=FitScoreRead.model_validate(fit_score) if fit_score else None,
-            )
+    results = [
+        JobWithScore(
+            application_id=application.id,
+            application_status=application.status,
+            job=JobRead.model_validate(job),
+            company=CompanyRead.model_validate(company),
+            fit_score=FitScoreRead.model_validate(fit_score) if fit_score else None,
         )
-
+        for application, job, company, fit_score in rows
+    ]
     results.sort(key=lambda r: r.fit_score.overall_score if r.fit_score else -1, reverse=True)
     return results

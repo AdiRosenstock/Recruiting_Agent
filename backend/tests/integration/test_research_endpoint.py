@@ -61,6 +61,23 @@ def test_run_research_persists_a_verified_fact(client: TestClient) -> None:
         app.dependency_overrides.pop(get_research_agent, None)
 
 
+def test_rerunning_research_does_not_duplicate_unchanged_facts(client: TestClient) -> None:
+    """Found via live dashboard testing: re-running research on an unchanged page was piling up
+    exact-duplicate rows every time."""
+    app.dependency_overrides[get_research_agent] = _fake_agent
+    try:
+        company_id = _create_company(client)
+        client.post(f"/api/v1/companies/{company_id}/research/run")
+        second = client.post(f"/api/v1/companies/{company_id}/research/run")
+        assert second.status_code == 200
+        assert second.json()["facts_created"] == 0  # nothing *new* -- already on file
+
+        rows = client.get(f"/api/v1/companies/{company_id}/research").json()
+        assert len(rows) == 1  # not duplicated
+    finally:
+        app.dependency_overrides.pop(get_research_agent, None)
+
+
 def test_run_research_detects_personal_connection(client: TestClient) -> None:
     app.dependency_overrides[get_research_agent] = lambda: _fake_agent(
         "MedScan builds AI for radiology and diagnostic imaging teams."

@@ -65,71 +65,102 @@ class CompanyResearchAgent:
 
         extracted = self._researcher.research(page.text, self._llm_provider)
 
+        # Re-running research on an unchanged (or lightly changed) page shouldn't pile up exact
+        # duplicate rows -- skip anything identical to what's already on file for this company.
+        existing_statements = {
+            (row.fact_type, row.statement, row.is_inference)
+            for row in db.query(CompanyResearch).filter_by(company_id=company_id).all()
+        }
+
         facts_created = 0
         inferences_created = 0
+        duplicates_skipped = 0
+
+        def add_if_new(
+            *, fact_type: str, statement: str, is_inference: bool, confidence: float | None
+        ) -> bool:
+            """Returns True if a row was actually added (False if it's an exact duplicate of
+            something already on file for this company -- re-running research on an unchanged
+            page shouldn't pile up repeats)."""
+            key = (fact_type, statement, is_inference)
+            if key in existing_statements:
+                return False
+            existing_statements.add(key)
+            db.add(
+                CompanyResearch(
+                    company_id=company_id,
+                    fact_type=fact_type,
+                    statement=statement,
+                    is_inference=is_inference,
+                    source_id=source.id,
+                    confidence=confidence,
+                )
+            )
+            return True
 
         for fact in extracted.facts:
             verified = verify_snippet(fact.evidence, page.text)
             if verified:
-                db.add(
-                    CompanyResearch(
-                        company_id=company_id,
-                        fact_type=fact.fact_type,
-                        statement=fact.statement,
-                        is_inference=False,
-                        source_id=source.id,
-                        confidence=1.0,
-                    )
-                )
-                facts_created += 1
+                if add_if_new(
+                    fact_type=fact.fact_type,
+                    statement=fact.statement,
+                    is_inference=False,
+                    confidence=1.0,
+                ):
+                    facts_created += 1
+                else:
+                    duplicates_skipped += 1
             else:
                 # Demoted, not dropped: the LLM claimed this as fact but we can't verify it
                 # against the actually-fetched text, so it's stored as an inference instead of
                 # a confirmed fact -- never presented as more certain than it is.
-                db.add(
-                    CompanyResearch(
-                        company_id=company_id,
-                        fact_type=fact.fact_type,
-                        statement=fact.statement,
-                        is_inference=True,
-                        source_id=source.id,
-                        confidence=0.3,
+                if add_if_new(
+                    fact_type=fact.fact_type,
+                    statement=fact.statement,
+                    is_inference=True,
+                    confidence=0.3,
+                ):
+                    inferences_created += 1
+                    warnings.append(
+                        f"Claimed fact '{fact.statement[:80]}' could not be verified verbatim "
+                        "against the fetched page -- stored as an inference instead."
                     )
-                )
-                inferences_created += 1
-                warnings.append(
-                    f"Claimed fact '{fact.statement[:80]}' could not be verified verbatim against "
-                    "the fetched page -- stored as an inference instead."
-                )
-                log_agent_decision(
-                    "research_fact_unverified", company_id=str(company_id), statement=fact.statement
-                )
+                    log_agent_decision(
+                        "research_fact_unverified",
+                        company_id=str(company_id),
+                        statement=fact.statement,
+                    )
+                else:
+                    duplicates_skipped += 1
 
         for inference in extracted.inferences:
-            db.add(
-                CompanyResearch(
-                    company_id=company_id,
-                    fact_type=inference.fact_type,
-                    statement=inference.statement,
-                    is_inference=True,
-                    source_id=source.id,
-                    confidence=None,
-                )
-            )
-            inferences_created += 1
+            if add_if_new(
+                fact_type=inference.fact_type,
+                statement=inference.statement,
+                is_inference=True,
+                confidence=None,
+            ):
+                inferences_created += 1
+            else:
+                duplicates_skipped += 1
 
         for label in detect_domain_connections(page.text):
-            db.add(
-                CompanyResearch(
-                    company_id=company_id,
-                    fact_type="personal_connection",
-                    statement=f"Genuine personal connection: {label}.",
-                    is_inference=True,
-                    source_id=source.id,
-                    confidence=1.0,  # the keyword match itself is deterministic and certain
-                )
+            if add_if_new(
+                fact_type="personal_connection",
+                statement=f"Genuine personal connection: {label}.",
+                is_inference=True,
+                confidence=1.0,  # the keyword match itself is deterministic and certain
+            ):
+                inferences_created += 1
+            else:
+                duplicates_skipped += 1
+
+        if duplicates_skipped:
+            log_agent_decision(
+                "research_duplicates_skipped",
+                company_id=str(company_id),
+                duplicates_skipped=duplicates_skipped,
             )
-            inferences_created += 1
 
         company.date_last_checked = datetime.now(UTC)
 
