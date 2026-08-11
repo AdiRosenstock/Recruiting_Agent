@@ -1,7 +1,7 @@
 import uuid
 from datetime import UTC, datetime
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_outreach_agent
@@ -23,6 +23,26 @@ router = APIRouter(prefix="/api/v1/applications", tags=["applications"])
 # the dashboard doesn't need a second "when did this happen" prompt.
 _CONTACTED_STATUSES = {"CONTACTED", "RESPONDED", "INTERVIEW"}
 _RESPONDED_STATUSES = {"RESPONDED", "INTERVIEW"}
+
+
+@router.get("", response_model=list[ApplicationRead])
+def list_applications(
+    candidate_id: uuid.UUID,
+    profile_id: uuid.UUID | None = None,
+    status_filter: str | None = Query(default=None, alias="status"),
+    db: Session = Depends(get_db),
+) -> list[ApplicationRead]:
+    """The CRM-wide view across profiles -- `GET /search-profiles/{id}/jobs` is scoped to one
+    profile (and includes job/company/score details); this is the lighter-weight listing a
+    dashboard's "everything, filterable by status" screen would use.
+    """
+    query = db.query(Application).filter_by(candidate_id=candidate_id)
+    if profile_id is not None:
+        query = query.filter_by(profile_id=profile_id)
+    if status_filter is not None:
+        query = query.filter_by(status=status_filter)
+    applications = query.order_by(Application.updated_at.desc()).all()
+    return [ApplicationRead.model_validate(application) for application in applications]
 
 
 @router.get("/{application_id}", response_model=ApplicationRead)

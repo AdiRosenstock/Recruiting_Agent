@@ -139,3 +139,59 @@ def test_generate_outreach_404s_for_unknown_application(client: TestClient) -> N
     fake_id = "00000000-0000-0000-0000-000000000000"
     response = client.post(f"/api/v1/applications/{fake_id}/outreach")
     assert response.status_code == 404
+
+
+def test_list_applications_filters_by_candidate(
+    client: TestClient, sample_resume_bytes: bytes
+) -> None:
+    app_id_1 = _create_scored_application(client, sample_resume_bytes, outreach_enabled=True)
+    application_1 = client.get(f"/api/v1/applications/{app_id_1}").json()
+
+    listed = client.get(
+        "/api/v1/applications", params={"candidate_id": application_1["candidate_id"]}
+    ).json()
+    assert len(listed) == 1
+    assert listed[0]["id"] == app_id_1
+
+
+def test_list_applications_filters_by_status(
+    client: TestClient, sample_resume_bytes: bytes
+) -> None:
+    app_id = _create_scored_application(client, sample_resume_bytes, outreach_enabled=True)
+    application = client.get(f"/api/v1/applications/{app_id}").json()
+    candidate_id = application["candidate_id"]
+
+    client.patch(f"/api/v1/applications/{app_id}", json={"status": "ARCHIVED"})
+
+    matching = client.get(
+        "/api/v1/applications", params={"candidate_id": candidate_id, "status": "ARCHIVED"}
+    ).json()
+    assert len(matching) == 1
+
+    non_matching = client.get(
+        "/api/v1/applications", params={"candidate_id": candidate_id, "status": "DISCOVERED"}
+    ).json()
+    assert len(non_matching) == 0
+
+
+def test_list_applications_filters_by_profile(
+    client: TestClient, sample_resume_bytes: bytes
+) -> None:
+    app_id = _create_scored_application(client, sample_resume_bytes, outreach_enabled=True)
+    application = client.get(f"/api/v1/applications/{app_id}").json()
+
+    matching = client.get(
+        "/api/v1/applications",
+        params={
+            "candidate_id": application["candidate_id"],
+            "profile_id": application["profile_id"],
+        },
+    ).json()
+    assert len(matching) == 1
+
+    other_profile_id = "00000000-0000-0000-0000-000000000000"
+    non_matching = client.get(
+        "/api/v1/applications",
+        params={"candidate_id": application["candidate_id"], "profile_id": other_profile_id},
+    ).json()
+    assert len(non_matching) == 0

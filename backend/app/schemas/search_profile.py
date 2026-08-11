@@ -33,3 +33,14 @@ class SearchProfileRead(BaseModel):
     display_name: str
     outreach_enabled: bool
     config: SearchProfileConfig
+
+
+class SearchProfileUpdate(BaseModel):
+    """Lets weights/filters be tuned without re-seeding (see scripts/seed_profiles.py) or
+    editing the database by hand. `config`, when provided, replaces the whole config object --
+    callers should read the current config first (GET) and send back a modified copy, not a
+    partial patch, since weight overrides are meaningful as a whole set."""
+
+    display_name: str | None = None
+    outreach_enabled: bool | None = None
+    config: SearchProfileConfig | None = None

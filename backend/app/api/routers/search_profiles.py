@@ -12,7 +12,7 @@ from app.models.search_profile import SearchProfile
 from app.schemas.company import CompanyRead
 from app.schemas.fit_score import FitScoreRead
 from app.schemas.job import JobRead, JobWithScore
-from app.schemas.search_profile import SearchProfileCreate, SearchProfileRead
+from app.schemas.search_profile import SearchProfileCreate, SearchProfileRead, SearchProfileUpdate
 
 router = APIRouter(prefix="/api/v1/search-profiles", tags=["search-profiles"])
 
@@ -50,6 +50,36 @@ def list_search_profiles(
 ) -> list[SearchProfileRead]:
     profiles = db.query(SearchProfile).filter_by(candidate_id=candidate_id).all()
     return [SearchProfileRead.model_validate(p) for p in profiles]
+
+
+@router.get("/{profile_id}", response_model=SearchProfileRead)
+def read_search_profile(profile_id: uuid.UUID, db: Session = Depends(get_db)) -> SearchProfileRead:
+    profile = db.get(SearchProfile, profile_id)
+    if profile is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Search profile not found"
+        )
+    return SearchProfileRead.model_validate(profile)
+
+
+@router.patch("/{profile_id}", response_model=SearchProfileRead)
+def update_search_profile(
+    profile_id: uuid.UUID, payload: SearchProfileUpdate, db: Session = Depends(get_db)
+) -> SearchProfileRead:
+    profile = db.get(SearchProfile, profile_id)
+    if profile is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Search profile not found"
+        )
+    if payload.display_name is not None:
+        profile.display_name = payload.display_name
+    if payload.outreach_enabled is not None:
+        profile.outreach_enabled = payload.outreach_enabled
+    if payload.config is not None:
+        profile.config = payload.config.model_dump()
+    db.commit()
+    db.refresh(profile)
+    return SearchProfileRead.model_validate(profile)
 
 
 @router.get("/{profile_id}/jobs", response_model=list[JobWithScore])
