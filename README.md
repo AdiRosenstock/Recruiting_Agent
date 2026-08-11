@@ -129,6 +129,10 @@ optionally upload a resume, create the two default search profiles, run discover
 `frontend/README.md` for details, including the Playwright end-to-end smoke test. Everything
 below this point also works entirely via `curl`/`/docs` if you'd rather skip the UI.
 
+Once both `.venv` and `node_modules` exist, `./scripts/dev.sh` starts Postgres + backend
+(`--reload`) + frontend together in one terminal (Ctrl+C stops backend/frontend; `db` is left
+running, same as the manual steps above) -- steps 2/5 and the dashboard's `npm run dev`, combined.
+
 ### Getting from a resume to scored, discovered jobs
 
 ```bash
