@@ -251,12 +251,23 @@ function ContactsSection({ companyId }: { companyId: string }) {
       {showForm && (
         <form onSubmit={handleAdd}>
           <div className="form-row">
-            <input placeholder="Name" value={name} onChange={(e) => setName(e.target.value)} />
-            <input placeholder="Title" value={title} onChange={(e) => setTitle(e.target.value)} />
+            <input
+              placeholder="Name"
+              aria-label="Contact name"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+            />
+            <input
+              placeholder="Title"
+              aria-label="Contact title"
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+            />
           </div>
           <div className="form-row">
             <input
               placeholder="Public profile URL (optional)"
+              aria-label="Public profile URL"
               value={url}
               onChange={(e) => setUrl(e.target.value)}
             />
@@ -341,6 +352,7 @@ function MessageVariant({ label, message }: { label: string; message: OutreachMe
         </span>
       </div>
       <textarea
+        aria-label={`${label} message content`}
         value={content}
         onChange={(e) => {
           setContent(e.target.value);
@@ -374,6 +386,7 @@ function StatusControls({
     <div className="form-row" style={{ alignItems: "center" }}>
       <StatusBadge status={entry.application_status} />
       <select
+        aria-label="Application status"
         value={entry.application_status}
         disabled={busy}
         onChange={(e) => handleChange(e.target.value as ApplicationStatus)}

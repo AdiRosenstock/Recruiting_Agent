@@ -35,6 +35,7 @@ export default function ResumeUpload({
         ref={inputRef}
         type="file"
         accept="application/pdf"
+        aria-label="Resume PDF"
         style={{ display: "none" }}
         onChange={(e) => {
           const file = e.target.files?.[0];

@@ -306,10 +306,12 @@ export default function DashboardPage() {
                 <input
                   type="search"
                   placeholder="Search by job title or company…"
+                  aria-label="Search applications by job title or company"
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                 />
                 <select
+                  aria-label="Filter by status"
                   value={statusFilter}
                   onChange={(e) => setStatusFilter(e.target.value as ApplicationStatus | "")}
                 >
