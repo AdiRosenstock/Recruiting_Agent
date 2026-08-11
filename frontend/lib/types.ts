@@ -112,6 +112,27 @@ export interface ApplicationRead {
   responded_at: string | null;
 }
 
+// What GET /api/v1/applications returns -- the cross-profile "everything, searchable and
+// filterable" view, unlike ApplicationRead's bare ids (used by GET/PATCH /applications/{id}).
+export interface ApplicationWithDetails {
+  id: string;
+  candidate_id: string;
+  profile_id: string;
+  profile_key: string;
+  profile_display_name: string;
+  contact_id: string | null;
+  fit_score_id: string | null;
+  outreach_message_id: string | null;
+  status: ApplicationStatus;
+  notes: string | null;
+  contacted_at: string | null;
+  responded_at: string | null;
+  updated_at: string;
+  job: JobRead;
+  company: CompanyRead;
+  fit_score: FitScoreRead | null;
+}
+
 export interface CompanyResearchRead {
   id: string;
   company_id: string;

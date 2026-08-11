@@ -195,3 +195,44 @@ def test_list_applications_filters_by_profile(
         params={"candidate_id": application["candidate_id"], "profile_id": other_profile_id},
     ).json()
     assert len(non_matching) == 0
+
+
+def test_list_applications_includes_job_company_and_profile_details(
+    client: TestClient, sample_resume_bytes: bytes
+) -> None:
+    """The cross-profile view (unlike the bare `ApplicationRead` returned by GET /{id}) has to
+    carry enough to render a table row without a follow-up request per row."""
+    app_id = _create_scored_application(client, sample_resume_bytes, outreach_enabled=True)
+    application = client.get(f"/api/v1/applications/{app_id}").json()
+
+    [row] = client.get(
+        "/api/v1/applications", params={"candidate_id": application["candidate_id"]}
+    ).json()
+    assert row["job"]["title"] == "Data Engineer"
+    assert row["company"]["name"] == "Acme Data"
+    assert row["profile_key"] == "startup_outreach"
+    assert row["profile_display_name"] == "Test Profile"
+    assert row["fit_score"]["overall_score"] >= 0
+
+
+def test_list_applications_filters_by_search_query(
+    client: TestClient, sample_resume_bytes: bytes
+) -> None:
+    app_id = _create_scored_application(client, sample_resume_bytes, outreach_enabled=True)
+    application = client.get(f"/api/v1/applications/{app_id}").json()
+    candidate_id = application["candidate_id"]
+
+    matching_by_job_title = client.get(
+        "/api/v1/applications", params={"candidate_id": candidate_id, "q": "data engineer"}
+    ).json()
+    assert len(matching_by_job_title) == 1
+
+    matching_by_company = client.get(
+        "/api/v1/applications", params={"candidate_id": candidate_id, "q": "acme"}
+    ).json()
+    assert len(matching_by_company) == 1
+
+    non_matching = client.get(
+        "/api/v1/applications", params={"candidate_id": candidate_id, "q": "nonexistent widget"}
+    ).json()
+    assert len(non_matching) == 0

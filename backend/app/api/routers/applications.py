@@ -9,9 +9,13 @@ from app.db.session import get_db
 from app.models.application import Application
 from app.models.company import Company
 from app.models.contact import Contact
+from app.models.fit_score import FitScore
 from app.models.job import Job
 from app.models.search_profile import SearchProfile
-from app.schemas.application import ApplicationRead, ApplicationUpdate
+from app.schemas.application import ApplicationRead, ApplicationUpdate, ApplicationWithDetails
+from app.schemas.company import CompanyRead
+from app.schemas.fit_score import FitScoreRead
+from app.schemas.job import JobRead
 from app.schemas.outreach_message import OutreachGenerationResult, OutreachMessageRead
 from app.services.candidate_reader import get_candidate_profile
 from app.services.outreach.agent import OutreachMessageAgent
@@ -25,24 +29,62 @@ _CONTACTED_STATUSES = {"CONTACTED", "RESPONDED", "INTERVIEW"}
 _RESPONDED_STATUSES = {"RESPONDED", "INTERVIEW"}
 
 
-@router.get("", response_model=list[ApplicationRead])
+@router.get("", response_model=list[ApplicationWithDetails])
 def list_applications(
     candidate_id: uuid.UUID,
     profile_id: uuid.UUID | None = None,
     status_filter: str | None = Query(default=None, alias="status"),
+    q: str | None = Query(
+        default=None,
+        description="Case-insensitive substring match against job title or company name.",
+    ),
     db: Session = Depends(get_db),
-) -> list[ApplicationRead]:
+) -> list[ApplicationWithDetails]:
     """The CRM-wide view across profiles -- `GET /search-profiles/{id}/jobs` is scoped to one
-    profile (and includes job/company/score details); this is the lighter-weight listing a
-    dashboard's "everything, filterable by status" screen would use.
+    profile; this is the "everything, across every profile, searchable and filterable" screen,
+    e.g. "every application in READY_TO_CONTACT status regardless of which profile found it."
+
+    One joined query (same reasoning as `list_profile_jobs`'s N+1 fix): a candidate running
+    several profiles for a while can have this list run into the hundreds.
     """
-    query = db.query(Application).filter_by(candidate_id=candidate_id)
+    query = (
+        db.query(Application, Job, Company, FitScore, SearchProfile)
+        .join(Job, Application.job_id == Job.id)
+        .join(Company, Job.company_id == Company.id)
+        .outerjoin(FitScore, Application.fit_score_id == FitScore.id)
+        .join(SearchProfile, Application.profile_id == SearchProfile.id)
+        .filter(Application.candidate_id == candidate_id)
+    )
     if profile_id is not None:
-        query = query.filter_by(profile_id=profile_id)
+        query = query.filter(Application.profile_id == profile_id)
     if status_filter is not None:
-        query = query.filter_by(status=status_filter)
-    applications = query.order_by(Application.updated_at.desc()).all()
-    return [ApplicationRead.model_validate(application) for application in applications]
+        query = query.filter(Application.status == status_filter)
+    if q:
+        needle = q.strip().lower()
+        query = query.filter(Job.title.ilike(f"%{needle}%") | Company.name.ilike(f"%{needle}%"))
+
+    rows = query.order_by(Application.updated_at.desc()).all()
+    return [
+        ApplicationWithDetails(
+            id=application.id,
+            candidate_id=application.candidate_id,
+            profile_id=application.profile_id,
+            profile_key=profile.profile_key,
+            profile_display_name=profile.display_name,
+            contact_id=application.contact_id,
+            fit_score_id=application.fit_score_id,
+            outreach_message_id=application.outreach_message_id,
+            status=application.status,
+            notes=application.notes,
+            contacted_at=application.contacted_at,
+            responded_at=application.responded_at,
+            updated_at=application.updated_at,
+            job=JobRead.model_validate(job),
+            company=CompanyRead.model_validate(company),
+            fit_score=FitScoreRead.model_validate(fit_score) if fit_score else None,
+        )
+        for application, job, company, fit_score, profile in rows
+    ]
 
 
 @router.get("/{application_id}", response_model=ApplicationRead)
