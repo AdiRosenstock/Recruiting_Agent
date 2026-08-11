@@ -1,0 +1,6 @@
+node_modules
+.next
+e2e/screenshots
+.env*
+!.env.example
+npm-debug.log*

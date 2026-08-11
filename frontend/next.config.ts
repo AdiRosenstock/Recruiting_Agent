@@ -9,6 +9,10 @@ const nextConfig: NextConfig = {
   turbopack: {
     root: path.resolve(__dirname),
   },
+  // Minimal, self-contained `.next/standalone` build (only the files actually needed at
+  // runtime, own `node_modules` copied in) -- what Dockerfile's runtime stage runs. Doesn't
+  // affect `next dev`/`next start` outside Docker.
+  output: "standalone",
 };
 
 export default nextConfig;

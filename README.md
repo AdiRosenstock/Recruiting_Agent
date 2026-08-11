@@ -294,13 +294,45 @@ existing search profile on a timer -- the exact same logic `POST /discovery/run`
 triggered by a clock instead of a request. The first run happens one full interval after
 startup, not immediately.
 
+## Running the whole stack in Docker
+
+The [Local setup](#local-setup) above (native `uvicorn --reload` / `npm run dev`, Postgres in
+Docker) is the fast-reload dev workflow and stays the default. `docker compose up -d` builds and
+runs all three services -- `db`, `backend`, `frontend` -- as an actual deployable stack, e.g. to
+run this somewhere other than a laptop, or to sanity-check the images that would actually ship
+match what dev testing covered.
+
+```bash
+cp .env.example .env   # fill in real LLM/API keys if you want more than the stub providers
+docker compose up -d --build
+```
+
+- `backend`'s entrypoint runs `alembic upgrade head` before starting uvicorn (idempotent --
+  safe on every restart), then serves on `:8000`.
+- `frontend` is a `next build --output=standalone` image (`frontend/Dockerfile`) served on
+  `:3000`. `NEXT_PUBLIC_API_BASE_URL` is a **build** arg, not a runtime env var -- Next.js
+  inlines `NEXT_PUBLIC_*` values into the client bundle at build time, since the browser (not
+  the frontend container) is what actually calls the backend. It defaults to
+  `http://localhost:8000` (the backend's host-published port); override it in `.env` if you're
+  deploying somewhere the browser reaches the backend at a different address, and rebuild
+  (`docker compose build frontend`) for the change to take effect.
+- Resume uploads persist in the `recruiting_agent_resumes` named volume (backend container's
+  `/app/data/resumes`), independent of the `recruiting_agent_pgdata` volume Postgres already
+  used. Both survive `docker compose down`; `docker compose down -v` removes everything.
+- `docker compose up -d db` (no `--build`, no other services) still works exactly as before,
+  for the native dev workflow.
+
+Verified end-to-end: built both images, brought up the full stack, confirmed migrations ran,
+created a real candidate through the dockerized backend's API, and loaded the dockerized
+frontend in a real browser against it with zero console errors.
+
 ## Roadmap
 
 - **Phase 4 (in progress):** ~~YC company directory~~, ~~scheduler~~, ~~applications
   listing~~, ~~`PATCH /search-profiles/{id}`~~, ~~a real `SearchProvider`~~ all done. Still
   open: Wellfound/VC-portfolio `CompanySource` adapters (pending per-source ToS/scraping
   review).
-- **Phase 5 (in progress):** ~~the Next.js dashboard~~ done (`frontend/`). Still open: fuller
-  agent-decision logging, a prompt-version registry, an evaluation harness, deployment
-  packaging, multi-source `applications` filtering UI (search/sort beyond the current
-  per-profile table).
+- **Phase 5 (in progress):** ~~the Next.js dashboard~~, ~~deployment packaging~~ (Dockerfiles +
+  full `docker-compose` stack, see "Running the whole stack in Docker" above) done. Still open:
+  fuller agent-decision logging, a prompt-version registry, an evaluation harness, multi-source
+  `applications` filtering UI (search/sort beyond the current per-profile table).

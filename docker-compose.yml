@@ -17,5 +17,50 @@ services:
       timeout: 5s
       retries: 10
 
+  # `db` alone is all local dev needs (see README "Local setup" -- backend/frontend run natively
+  # via uvicorn/npm for fast reload). `backend`/`frontend` below are for running the whole stack
+  # in containers -- `docker compose up -d` -- e.g. to deploy somewhere, or to sanity-check the
+  # built images match what's actually shipped.
+  backend:
+    build: ./backend
+    container_name: recruiting_agent_backend
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      # Talks to `db` over the compose network directly (port 5432, the container's own port --
+      # not ${POSTGRES_PORT}, which only remaps the *host*-facing port above).
+      DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-recruiting_agent}:${POSTGRES_PASSWORD:-recruiting_agent}@db:5432/${POSTGRES_DB:-recruiting_agent}
+      CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:3000}
+      LLM_PROVIDER: ${LLM_PROVIDER:-stub}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      OPENAI_MODEL: ${OPENAI_MODEL:-gpt-4.1}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      ANTHROPIC_MODEL: ${ANTHROPIC_MODEL:-claude-sonnet-5}
+      SEARCH_PROVIDER: ${SEARCH_PROVIDER:-duckduckgo}
+      ENABLE_SCHEDULER: ${ENABLE_SCHEDULER:-false}
+      DISCOVERY_REFRESH_HOURS: ${DISCOVERY_REFRESH_HOURS:-6}
+    ports:
+      - "8000:8000"
+    volumes:
+      - recruiting_agent_resumes:/app/data/resumes
+
+  frontend:
+    build:
+      context: ./frontend
+      args:
+        # Baked into the client JS bundle at build time (see frontend/Dockerfile) -- has to be
+        # where the *browser* can reach the backend, i.e. the host-published port, not the
+        # in-network service name.
+        NEXT_PUBLIC_API_BASE_URL: ${NEXT_PUBLIC_API_BASE_URL:-http://localhost:8000}
+    container_name: recruiting_agent_frontend
+    restart: unless-stopped
+    depends_on:
+      - backend
+    ports:
+      - "3000:3000"
+
 volumes:
   recruiting_agent_pgdata:
+  recruiting_agent_resumes:
