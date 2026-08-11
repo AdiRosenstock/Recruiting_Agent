@@ -12,6 +12,7 @@ from app.services.resume_parsing.llm_structurer import LLMResumeStructurer
 from app.services.resume_parsing.pdf_extractor import PDFTextExtractor
 from app.services.resume_parsing.service import ResumeParsingService
 from app.services.resume_parsing.storage import LocalFileStorage
+from app.services.search.factory import get_search_provider
 
 
 def get_resume_parsing_service(
@@ -32,6 +33,7 @@ def get_research_agent(settings: Settings = Depends(get_settings)) -> CompanyRes
         fetcher=PageFetcher(),
         researcher=LLMCompanyResearcher(),
         llm_provider=get_llm_provider(settings),
+        search_provider=get_search_provider(settings),
     )
 
 

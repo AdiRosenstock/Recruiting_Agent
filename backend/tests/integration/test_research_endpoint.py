@@ -13,6 +13,7 @@ from app.services.llm.stub_provider import StubProvider
 from app.services.research.agent import CompanyResearchAgent
 from app.services.research.fetcher import FetchedPage, PageFetchError
 from app.services.research.llm_researcher import LLMCompanyResearcher
+from app.services.search.base import SearchResult
 
 
 def _fake_agent(
@@ -24,6 +25,23 @@ def _fake_agent(
     )
     return CompanyResearchAgent(
         fetcher=fetcher, researcher=LLMCompanyResearcher(), llm_provider=StubProvider()
+    )
+
+
+def _agent_with_search_fallback(
+    *, search_results: list[SearchResult], page_text: str = "Acme Robotics builds robots."
+) -> CompanyResearchAgent:
+    fetcher = MagicMock()
+    fetcher.fetch.return_value = FetchedPage(
+        url="https://acme.example", text=page_text, title="Acme Robotics"
+    )
+    search_provider = MagicMock()
+    search_provider.search.return_value = search_results
+    return CompanyResearchAgent(
+        fetcher=fetcher,
+        researcher=LLMCompanyResearcher(),
+        llm_provider=StubProvider(),
+        search_provider=search_provider,
     )
 
 
@@ -102,6 +120,48 @@ def test_run_research_with_no_website_returns_warning_not_error(client: TestClie
         result = response.json()
         assert result["facts_created"] == 0
         assert "no website" in result["warnings"][0].lower()
+    finally:
+        app.dependency_overrides.pop(get_research_agent, None)
+
+
+def test_run_research_falls_back_to_search_when_no_website_on_file(client: TestClient) -> None:
+    """Company has no website; the search-fallback path should find one via the (mocked)
+    SearchProvider, persist it onto the company, and research from it -- rather than giving up
+    immediately."""
+    search_results = [
+        SearchResult(
+            title="Acme Robotics | LinkedIn", url="https://linkedin.com/company/acme", snippet=""
+        ),
+        SearchResult(title="Acme Robotics", url="https://acme.example/", snippet=""),
+    ]
+    app.dependency_overrides[get_research_agent] = lambda: _agent_with_search_fallback(
+        search_results=search_results
+    )
+    try:
+        company_id = _create_company(client, website=None)
+        response = client.post(f"/api/v1/companies/{company_id}/research/run")
+        assert response.status_code == 200
+        result = response.json()
+        assert result["facts_created"] == 1
+        assert any("acme.example" in warning for warning in result["warnings"])
+
+        company = client.get(f"/api/v1/companies/{company_id}").json()
+        assert company["website"] == "https://acme.example/"
+    finally:
+        app.dependency_overrides.pop(get_research_agent, None)
+
+
+def test_run_research_with_no_website_and_search_finds_nothing(client: TestClient) -> None:
+    app.dependency_overrides[get_research_agent] = lambda: _agent_with_search_fallback(
+        search_results=[]
+    )
+    try:
+        company_id = _create_company(client, website=None)
+        response = client.post(f"/api/v1/companies/{company_id}/research/run")
+        assert response.status_code == 200
+        result = response.json()
+        assert result["facts_created"] == 0
+        assert "nothing plausible" in result["warnings"][0].lower()
     finally:
         app.dependency_overrides.pop(get_research_agent, None)
 

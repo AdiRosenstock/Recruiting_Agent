@@ -44,20 +44,27 @@ Outreach is always human-approved and human-sent; see the compliance note in the
   weighted-summed into a 0-100 score with a tier and human-readable strengths/gaps. No LLM call.
   Never hard-rejects for a job asking slightly more experience than the candidate has; a missing
   personal connection is neutral, never scored as a weakness.
-- A `SearchProvider` abstraction (`services/search/`), stubbed for now -- research runs directly
-  off a company's own website instead (see below), so this isn't blocking; a real search
-  provider is still useful future work for companies with no known website.
+- A `SearchProvider` abstraction (`services/search/`) with a real, no-API-key implementation --
+  `DuckDuckGoSearchProvider` uses DuckDuckGo's plain HTML results page (the same no-JS endpoint
+  it serves browsers with JavaScript disabled). Company Research primarily works directly off a
+  company's own `website` when one's on file; when it isn't, this is the fallback (see Phase 3
+  below) rather than giving up immediately.
 
 **Phase 3 -- research, contacts, outreach, human-approval workflow:**
 - **Company Research Agent** (`services/research/`): deterministically fetches a company's
-  website (no search API needed -- just the URL already on file), has an LLM split what it
-  finds into FACTS (each verified verbatim against the fetched page, same evidence-check
-  approach as resume parsing) and INFERENCES. A claimed fact that can't be verified is
-  *demoted* to an inference, never dropped and never left posing as more certain than it is.
-  A hit against the shared personal-connection triggers (`app/domain_connections.py` -- the
-  same list the fit scorer uses) is stored as its own inference row.
-- **Contacts** (`services/contacts.py`): manual entry (no LinkedIn scraping -- see Compliance
-  below) with a deterministic priority rank computed from the spec's two priority lists
+  website (no search API needed -- just the URL already on file; if there isn't one,
+  `website_lookup.py` falls back to `SearchProvider` for "`<company> official website"`,
+  filters out aggregators/social sites, and uses the first plausible result -- unverified,
+  flagged as such in the run's warnings until the fetched page passes the same evidence check
+  everything else does), has an LLM split what it finds into FACTS (each verified verbatim
+  against the fetched page, same evidence-check approach as resume parsing) and INFERENCES. A
+  claimed fact that can't be verified is *demoted* to an inference, never dropped and never left
+  posing as more certain than it is. A hit against the shared personal-connection triggers
+  (`app/domain_connections.py` -- the same list the fit scorer uses) is stored as its own
+  inference row. Re-running research on an unchanged page doesn't pile up duplicate rows.
+- **Contacts** (`services/contacts.py`): manual entry -- no LinkedIn scraping, no login
+  automation, ever (see the "Nothing in this system automates LinkedIn" note above) -- with a
+  deterministic priority rank computed from the spec's two priority lists
   (very-early-stage vs. larger company, by employee count).
 - **Outreach Message Agent** (`services/outreach/`): drafts `linkedin_full` /
   `linkedin_connection` / `email` variants from real assembled context (candidate background,
@@ -158,7 +165,8 @@ Companies/jobs can also be added manually: `POST /api/v1/companies`, then `POST
 ### From a scored job to a drafted, human-reviewed outreach message
 
 ```bash
-# 1. Research the company (only works if it has a `website` on file)
+# 1. Research the company (works from its `website` if one's on file; otherwise falls back to
+#    a web search for one first -- see SEARCH_PROVIDER above)
 curl -s -X POST http://localhost:8000/api/v1/companies/<company-id>/research/run
 curl -s http://localhost:8000/api/v1/companies/<company-id>/research
 
@@ -201,9 +209,11 @@ OPENAI_API_KEY=sk-...
 ANTHROPIC_API_KEY=sk-ant-...
 ```
 
-`SEARCH_PROVIDER` has only one valid value (`stub`) -- no search API key is wired up yet. The
-Company Research Agent doesn't need one (it works directly from a company's `website` field);
-a real search provider is future work, for companies with no known website on file.
+`SEARCH_PROVIDER` defaults to `duckduckgo` -- no API key needed (see `services/search/
+duckduckgo_provider.py`). The Company Research Agent only calls it as a fallback, when a
+company has no `website` on file. Set `SEARCH_PROVIDER=stub` for fully offline work, or if
+you'd rather Company Research just skip companies with no website on file instead of guessing
+one.
 
 ### Why port 5433?
 
@@ -287,9 +297,9 @@ startup, not immediately.
 ## Roadmap
 
 - **Phase 4 (in progress):** ~~YC company directory~~, ~~scheduler~~, ~~applications
-  listing~~, ~~`PATCH /search-profiles/{id}`~~ all done. Still open: Wellfound/VC-portfolio
-  `CompanySource` adapters (pending per-source ToS/scraping review); a real `SearchProvider`
-  (for companies with no known website).
+  listing~~, ~~`PATCH /search-profiles/{id}`~~, ~~a real `SearchProvider`~~ all done. Still
+  open: Wellfound/VC-portfolio `CompanySource` adapters (pending per-source ToS/scraping
+  review).
 - **Phase 5 (in progress):** ~~the Next.js dashboard~~ done (`frontend/`). Still open: fuller
   agent-decision logging, a prompt-version registry, an evaluation harness, deployment
   packaging, multi-source `applications` filtering UI (search/sort beyond the current

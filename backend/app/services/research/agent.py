@@ -21,6 +21,8 @@ from app.services.evidence import verify_snippet
 from app.services.llm.base import LLMProvider
 from app.services.research.fetcher import PageFetcher, PageFetchError
 from app.services.research.llm_researcher import PROMPT_VERSION, LLMCompanyResearcher
+from app.services.research.website_lookup import find_company_website
+from app.services.search.base import SearchProvider
 
 logger = get_logger(__name__)
 
@@ -36,10 +38,12 @@ class CompanyResearchAgent:
         fetcher: PageFetcher,
         researcher: LLMCompanyResearcher,
         llm_provider: LLMProvider,
+        search_provider: SearchProvider | None = None,
     ) -> None:
         self._fetcher = fetcher
         self._researcher = researcher
         self._llm_provider = llm_provider
+        self._search_provider = search_provider
 
     def research(self, *, db: Session, company_id: uuid.UUID) -> CompanyResearchRunResult:
         company = db.get(Company, company_id)
@@ -48,9 +52,23 @@ class CompanyResearchAgent:
 
         warnings: list[str] = []
         if not company.website:
-            warnings.append("Company has no website on file -- nothing to research from.")
-            return CompanyResearchRunResult(
-                company_id=company_id, facts_created=0, inferences_created=0, warnings=warnings
+            discovered = self._discover_website(company)
+            if discovered is None:
+                warnings.append(
+                    "Company has no website on file, and search "
+                    + ("found nothing plausible." if self._search_provider else "is disabled.")
+                )
+                return CompanyResearchRunResult(
+                    company_id=company_id,
+                    facts_created=0,
+                    inferences_created=0,
+                    warnings=warnings,
+                )
+            company.website = discovered
+            warnings.append(
+                f"Company had no website on file -- found and used {discovered!r} via web "
+                "search. Unverified: confirm this is really the company before trusting facts "
+                "sourced from it."
             )
 
         try:
@@ -179,6 +197,29 @@ class CompanyResearchAgent:
             inferences_created=inferences_created,
             warnings=warnings,
         )
+
+    def _discover_website(self, company: Company) -> str | None:
+        """Best-effort fallback when a company has no `website` on file: search for one rather
+        than giving up immediately. Returns None (never raises) if search is disabled or
+        nothing plausible turns up -- the caller's existing "no website" warning path still
+        applies either way."""
+        if self._search_provider is None:
+            return None
+        url, query = find_company_website(company.name, search_provider=self._search_provider)
+        if url is None:
+            log_agent_decision(
+                "company_website_search_found_nothing",
+                company_id=str(company.id),
+                query=query,
+            )
+            return None
+        log_agent_decision(
+            "company_website_discovered_via_search",
+            company_id=str(company.id),
+            query=query,
+            website=url,
+        )
+        return url
 
     @staticmethod
     def _get_or_create_source(db: Session, *, url: str, title: str | None) -> Source:

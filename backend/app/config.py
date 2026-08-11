@@ -43,9 +43,9 @@ class Settings(BaseSettings):
     anthropic_api_key: str | None = None
     anthropic_model: str = "claude-sonnet-5"
 
-    # No real provider exists yet (see services/search) -- "stub" is the only valid value until
-    # a real key (Brave/Bing/SerpAPI) gets added here the same way the LLM keys are.
-    search_provider: Literal["stub"] = "stub"
+    # "duckduckgo" needs no API key (see services/search/duckduckgo_provider.py) and is the
+    # default; "stub" is available for tests/offline work, same role as LLM_PROVIDER=stub.
+    search_provider: Literal["duckduckgo", "stub"] = "duckduckgo"
 
     # Off by default -- the app should never make background network calls (to HN/YC/GitHub)
     # without being explicitly asked to. See services/scheduler.py.
