@@ -245,6 +245,25 @@ The test suite creates/migrates a separate `recruiting_agent_test` database auto
 docker compose exec db psql -U recruiting_agent -d recruiting_agent -c "CREATE DATABASE recruiting_agent_test;"
 ```
 
+### Evaluation harness
+
+`scripts/evaluate.py` is a different kind of check than `pytest`: not exact-equality assertions,
+but a repeatable report on (1) `FitScorer` run end-to-end over a small golden set of realistic
+(candidate, job, company, profile) cases -- each chosen to exercise one documented scoring
+decision (extra experience doesn't cliff to zero, a personal-connection hit moves the score,
+`new_grad_2027`'s zeroed stage weight actually zeroes it out) -- PASS/FAIL against an expected
+tier range; and (2) the LLM-driven agents' actual output (company research, outreach drafts)
+printed for a human to read and judge, since there's no boolean to assert a real model's prose
+against. Standalone -- no database, no HTTP server:
+
+```bash
+.venv/bin/python scripts/evaluate.py            # LLM_PROVIDER=stub (deterministic, from .env)
+LLM_PROVIDER=openai .venv/bin/python scripts/evaluate.py   # meaningful quality read, needs a key
+```
+
+Useful before/after touching scoring weights or a prompt -- see what actually moved, not just
+whether the (necessarily narrower) pytest assertions still pass.
+
 ## Architecture notes
 
 - **Sync SQLAlchemy, not async.** At single-user scale, async buys nothing but complexity;
@@ -333,6 +352,7 @@ frontend in a real browser against it with zero console errors.
   open: Wellfound/VC-portfolio `CompanySource` adapters (pending per-source ToS/scraping
   review).
 - **Phase 5 (in progress):** ~~the Next.js dashboard~~, ~~deployment packaging~~ (Dockerfiles +
-  full `docker-compose` stack, see "Running the whole stack in Docker" above) done. Still open:
-  fuller agent-decision logging, a prompt-version registry, an evaluation harness, multi-source
-  `applications` filtering UI (search/sort beyond the current per-profile table).
+  full `docker-compose` stack, see "Running the whole stack in Docker" above), ~~an evaluation
+  harness~~ (`scripts/evaluate.py`, see "Evaluation harness" above) done. Still open: fuller
+  agent-decision logging, a prompt-version registry, multi-source `applications` filtering UI
+  (search/sort beyond the current per-profile table).
