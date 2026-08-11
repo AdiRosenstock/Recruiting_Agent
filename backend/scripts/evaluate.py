@@ -64,17 +64,21 @@ _STARTUP_OUTREACH = SearchProfileRead(
         location_filters=["nyc", "new york", "remote"],
     ),
 )
-_NEW_GRAD_2027 = SearchProfileRead(
+# A hypothetical second startup-focused profile (not actually seeded -- see
+# scripts/seed_profiles.py, startup_outreach is the only one) used here purely to keep exercising
+# the weight-override mechanism itself: a profile can zero out a component (e.g. not care about
+# funding stage at all, an "any stage, still a startup" search) without a code change.
+_WIDE_STAGE_STARTUP = SearchProfileRead(
     id=uuid.uuid4(),
     candidate_id=uuid.uuid4(),
-    profile_key="new_grad_2027",
-    display_name="New Grad 2027",
-    outreach_enabled=False,
+    profile_key="wide_stage_startup",
+    display_name="Wide-Stage Startup",
+    outreach_enabled=True,
     config=SearchProfileConfig(
         weights={"stage": 0.0, "role": 0.25, "experience": 0.20},
-        role_filters=["software engineer", "quant", "quantitative", "data analyst"],
+        role_filters=["software engineer", "backend engineer"],
         stage_filters=[],
-        location_filters=[],
+        location_filters=["nyc", "new york", "remote"],
     ),
 )
 
@@ -261,17 +265,17 @@ GOLDEN_CASES: list[GoldenCase] = [
         expected_tiers={"excellent", "strong"},
     ),
     GoldenCase(
-        name="growth-stage quant role under new_grad_2027 (stage weight zeroed)",
+        name="growth-stage startup under a stage-agnostic profile (stage weight zeroed)",
         note="startup_outreach's stage_filters would reject a growth-stage company outright; "
-        "new_grad_2027 zeroes the stage weight in its config specifically so this doesn't "
-        "happen -- should score on role/skill fit alone.",
+        "a profile that zeroes the stage weight in its config shouldn't be affected by that at "
+        "all -- should score on role/skill fit alone.",
         job=_job(
-            title="Quantitative Developer",
+            title="Backend Engineer",
             technologies=["Python", "PostgreSQL"],
             location="New York, NY",
         ),
         company=_company(funding_stage="growth"),
-        profile=_NEW_GRAD_2027,
+        profile=_WIDE_STAGE_STARTUP,
         expected_tiers={"excellent", "strong", "worth_reviewing"},
     ),
     GoldenCase(

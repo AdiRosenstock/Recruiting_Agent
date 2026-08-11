@@ -261,13 +261,16 @@ def test_domain_match_neutral_not_a_gap_when_no_connection() -> None:
     assert component.score == 0.5
 
 
-def test_new_grad_profile_stage_weight_zero_never_penalizes_overall_score() -> None:
+def test_zeroed_stage_weight_never_penalizes_overall_score() -> None:
+    """A profile can configure `weights.stage: 0.0` to genuinely not care about funding stage
+    (e.g. "wide net" search variants) -- confirms that actually zeroes it out end to end,
+    not just in the individual component's own score."""
     candidate = make_candidate(skills=[make_skill("python")])
-    job = make_job(technologies=["Python"], title="Software Engineer New Grad")
+    job = make_job(technologies=["Python"], title="Software Engineer")
     company = make_company(funding_stage=None)  # would normally be penalized (0.4)
     profile = make_profile(
         role_filters=["software engineer"],
-        stage_filters=[],  # new_grad_2027 config: wide net, no stage preference
+        stage_filters=[],  # no stage preference configured
         location_filters=[],
         weights={"stage": 0.0, "role": 0.25, "experience": 0.20},
     )

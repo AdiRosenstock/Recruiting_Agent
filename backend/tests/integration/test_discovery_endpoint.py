@@ -1,7 +1,7 @@
 """Integration tests for POST /api/v1/discovery/run. Adapters are swapped for fakes via
 monkeypatching `app.services.discovery.runner`'s adapter registries -- no live network calls to
-HN/GitHub/YC in the test suite; those are covered separately (with mocked HTTP) in
-tests/unit/test_hn_who_is_hiring.py, test_github_new_grad_list.py, and test_yc_directory.py.
+HN/YC in the test suite; those are covered separately (with mocked HTTP) in
+tests/unit/test_hn_who_is_hiring.py and test_yc_directory.py.
 
 Every test that uses the `startup_outreach` profile key must also clear
 `COMPANY_ADAPTERS_BY_PROFILE_KEY["startup_outreach"]` (real `YCDirectorySource` is wired to it

@@ -14,17 +14,19 @@ from app.schemas.search_profile import SearchProfileRead
 from app.services.applications import get_or_create_application
 from app.services.candidate_reader import get_candidate_profile
 from app.services.discovery.base import CompanySource, JobBoardSource
-from app.services.discovery.github_new_grad_list import GitHubNewGradListSource
 from app.services.discovery.hn_who_is_hiring import HNWhoIsHiringSource
 from app.services.discovery.upsert import CompanyJobUpsertService
 from app.services.discovery.yc_directory import YCDirectorySource
 from app.services.scoring.service import score_if_unscored
 
 # profile_key -> adapters configured for it, split by discovery pattern (see
-# services/discovery/base.py). A profile can have both kinds at once.
+# services/discovery/base.py). A profile can have both kinds at once. Startup-only by design
+# (see scripts/seed_profiles.py) -- both current adapters are startup-focused sources (HN's
+# "Who is Hiring" thread, YC's public directory); a `GitHubNewGradListSource` adapter existed for
+# a since-removed "wide net across company sizes" profile and was deleted along with it, not
+# just unregistered (see the Roadmap in the root README).
 JOB_BOARD_ADAPTERS_BY_PROFILE_KEY: dict[str, list[type[JobBoardSource]]] = {
     "startup_outreach": [HNWhoIsHiringSource],
-    "new_grad_2027": [GitHubNewGradListSource],
 }
 COMPANY_ADAPTERS_BY_PROFILE_KEY: dict[str, list[type[CompanySource]]] = {
     "startup_outreach": [YCDirectorySource],

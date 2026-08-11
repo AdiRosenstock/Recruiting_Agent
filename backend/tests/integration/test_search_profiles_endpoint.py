@@ -39,8 +39,8 @@ def test_duplicate_profile_key_for_same_candidate_conflicts(client: TestClient) 
     candidate_id = _create_candidate(client)
     payload = {
         "candidate_id": candidate_id,
-        "profile_key": "new_grad_2027",
-        "display_name": "New Grad 2027",
+        "profile_key": "tracking_only",
+        "display_name": "Tracking Only",
     }
     first = client.post("/api/v1/search-profiles", json=payload)
     assert first.status_code == 201

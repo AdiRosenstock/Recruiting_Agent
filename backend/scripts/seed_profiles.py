@@ -1,12 +1,18 @@
 #!/usr/bin/env python
-"""One-time, idempotent setup: creates the two `search_profiles` from the Phase 2 plan against
-an existing candidate. Run from `backend/`:
+"""One-time, idempotent setup: creates the `startup_outreach` search profile against an
+existing candidate. Run from `backend/`:
 
     .venv/bin/python scripts/seed_profiles.py [--candidate-id UUID]
 
 If `--candidate-id` is omitted and exactly one candidate exists in the database, that candidate
-is used automatically (the common case for this single-user tool). Safe to re-run -- existing
-profiles are left untouched.
+is used automatically (the common case for this single-user tool). Safe to re-run -- an existing
+profile is left untouched.
+
+Startup-only by design: this app is scoped entirely to early-stage startup outreach, not a
+general job tracker. (An earlier `new_grad_2027` "wide net across company sizes" profile existed
+and was removed -- see the Roadmap in the root README for why.) `_PROFILES` stays a list, not a
+single dict, so a second *startup-focused* profile (a different stage/location cut, say) is
+still just a config addition here, not a new code path.
 """
 
 import argparse
@@ -40,35 +46,8 @@ _STARTUP_OUTREACH_CONFIG: dict[str, Any] = {
     "notes": "Early-stage NYC startups, small technical teams. Outreach enabled.",
 }
 
-_NEW_GRAD_2027_CONFIG: dict[str, Any] = {
-    # stage dropped to 0 (wide net on company size); the 0.10 it would have carried is
-    # redistributed into role/experience, which matter more for a new-grad search.
-    "weights": {"stage": 0.0, "role": 0.25, "experience": 0.20},
-    "role_filters": [
-        "software engineer",
-        "backend engineer",
-        "founding engineer",
-        "ai engineer",
-        "data engineer",
-        "product engineer",
-        "forward deployed engineer",
-        "quant",
-        "quantitative",
-        "trading",
-        "data analyst",
-        "data scientist",
-    ],
-    "stage_filters": [],  # wide net -- any company size
-    "location_filters": [],  # wide net -- don't penalize non-NYC postings
-    "notes": (
-        "Wide-net new-grad 2027 search across company sizes, including finance/quant-adjacent "
-        "roles given the Bloomberg background. Tracking only -- no outreach."
-    ),
-}
-
 _PROFILES: list[tuple[str, str, bool, dict[str, Any]]] = [
     ("startup_outreach", "Startup Outreach", True, _STARTUP_OUTREACH_CONFIG),
-    ("new_grad_2027", "New Grad 2027", False, _NEW_GRAD_2027_CONFIG),
 ]
 
 

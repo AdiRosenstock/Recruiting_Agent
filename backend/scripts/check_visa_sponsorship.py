@@ -3,11 +3,11 @@
 a profile in one pass -- the dashboard's per-job "Check visa sponsorship" button does one job at
 a time; this is for "check all 300 of them."
 
-Most jobs from a lightweight tracker (e.g. GitHubNewGradListSource) have no description on file
-at all, so most of the work here is a live fetch of the actual posting page, one at a time, with
-a short delay between requests -- this is slow by design (network-bound, hundreds of individual
-sites), not something to run automatically in a hot path. Run it once when you actually want the
-signal, not on every discovery run.
+Some jobs have no description on file at all (a source can be light on structured/free-text
+fields), so part of the work here can be a live fetch of the actual posting page, one at a time,
+with a short delay between requests -- this is slow by design (network-bound, potentially
+hundreds of individual sites), not something to run automatically in a hot path. Run it once
+when you actually want the signal, not on every discovery run.
 
 Usage (from backend/):
     .venv/bin/python scripts/check_visa_sponsorship.py --profile-id <uuid>

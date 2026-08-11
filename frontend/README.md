@@ -25,9 +25,9 @@ CORS is already configured for `http://localhost:3000` on the backend side.
 
 - **Onboarding** (`components/CandidateOnboarding.tsx`): create a candidate, optionally attach a
   resume PDF, right from the browser instead of curl.
-- **Profile setup** (`components/ProfileSetup.tsx`): one-click creation of the two default search
-  profiles (mirrors `backend/scripts/seed_profiles.py` exactly), so a fresh candidate doesn't
-  need the Python script at all.
+- **Profile setup** (`components/ProfileSetup.tsx`): one-click creation of the default
+  `startup_outreach` search profile (mirrors `backend/scripts/seed_profiles.py` exactly), so a
+  fresh candidate doesn't need the Python script at all.
 - **Dashboard** (`app/page.tsx` + `components/JobsTable.tsx`): profile tabs, a "Run discovery"
   button, and a table of every job tracked under the active profile -- sortable on any column
   (fit score, stage, location, visa status, ...), plus client-side location/visa filters.

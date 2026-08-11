@@ -40,11 +40,11 @@ if (await nameInput.isVisible().catch(() => false)) {
   console.log("onboarding form visible -- filling it out");
   await nameInput.fill("Playwright Smoke Test");
   await page.locator('button:has-text("Continue")').click();
-  await page.waitForSelector("text=Set up search profiles", { timeout: 15000 });
+  await page.waitForSelector("text=Set up your search profile", { timeout: 15000 });
   await shot("02-after-onboarding");
 
-  console.log("creating default profiles");
-  await page.locator('button:has-text("Create default profiles")').click();
+  console.log("creating the default search profile");
+  await page.locator('button:has-text("Create search profile")').click();
   await page.waitForSelector(".tabs .tab", { timeout: 15000 });
   await shot("03-profiles-created");
 } else {

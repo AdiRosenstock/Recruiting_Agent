@@ -1,8 +1,8 @@
 """A real `SearchProvider` that needs no API key: DuckDuckGo's plain HTML results page
 (`html.duckduckgo.com/html/`), the same no-JS endpoint DuckDuckGo serves to browsers with
 JavaScript disabled. No login, no key, no rate-limit tier to pay for -- exactly the "no-login
-public page" bar the discovery adapters (`HNWhoIsHiringSource`, `GitHubNewGradListSource`) were
-already held to, applied here to search instead of a single known source.
+public page" bar the discovery adapters (`HNWhoIsHiringSource`, `YCDirectorySource`) are already
+held to, applied here to search instead of a single known source.
 
 Parsing is deterministic regex on the fixed result markup (`result__a` / `result__snippet`
 anchors), same style as `services/research/fetcher.py` and the discovery adapters -- no LLM

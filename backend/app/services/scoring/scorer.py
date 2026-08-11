@@ -137,12 +137,12 @@ class FitScorer:
         candidate_skills = {_normalize_skill(s.skill_name) for s in candidate.skills if s.verified}
         job_skills = {_normalize_skill(t) for t in job.technologies}
         if not job_skills:
-            # No structured tech list (common for lightweight sources that only capture
-            # Company/Role/Location/Link/Date, e.g. GitHubNewGradListSource) -- a flat neutral
-            # score here for *every* such job, regardless of what the job actually is, is
-            # exactly what produced a wall of identical overall_scores in practice. Fall back to
-            # scanning the title/description text for the candidate's own skill names instead of
-            # giving up on differentiating these jobs at all.
+            # No structured tech list (a source can be light on structured fields even when it
+            # has real title/description text) -- a flat neutral score here for *every* such
+            # job, regardless of what the job actually is, is exactly what once produced a wall
+            # of identical overall_scores in practice (found via live data, not a hypothetical).
+            # Fall back to scanning the title/description text for the candidate's own skill
+            # names instead of giving up on differentiating these jobs at all.
             text_hits = _find_skills_in_text(
                 candidate_skills, f"{job.title} {job.description or ''}"
             )

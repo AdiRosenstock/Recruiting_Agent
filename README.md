@@ -5,16 +5,17 @@
 ![TypeScript](https://img.shields.io/badge/typescript-5-blue)
 ![Next.js](https://img.shields.io/badge/Next.js-16-black)
 ![FastAPI](https://img.shields.io/badge/FastAPI-009688)
-![Tests](https://img.shields.io/badge/backend%20tests-192%20passing-brightgreen)
+![Tests](https://img.shields.io/badge/backend%20tests-191%20passing-brightgreen)
 ![Coverage](https://img.shields.io/badge/coverage-96%25-brightgreen)
 
-A full-stack, agentic job-search system, designed and built solo: resume in, structured
-evidence-backed candidate profile out; live discovery against real external sources; a
-deterministic, explainable fit score for every job; company research with facts kept
-verifiably separate from inferences; and a drafted, human-approved outreach message --
-never sent automatically. The throughline across every piece: an LLM is used exactly where
-judgment is genuinely needed and nowhere else, and nothing it produces is ever presented as
-more certain than it actually is.
+A full-stack, agentic **startup** job-search system, designed and built solo: resume in,
+structured evidence-backed candidate profile out; live discovery against real early-stage
+startup sources; a deterministic, explainable fit score for every job; company research with
+facts kept verifiably separate from inferences; and a drafted, human-approved outreach message
+-- never sent automatically. Scoped to startups specifically, not a general job tracker -- see
+[Pipeline](#pipeline). The throughline across every piece: an LLM is used exactly where judgment
+is genuinely needed and nowhere else, and nothing it produces is ever presented as more certain
+than it actually is.
 
 **Jump to:** [Highlights](#highlights) · [Screenshots](#screenshots) ·
 [Architecture](#pipeline) · [Run it yourself](#local-setup) ·
@@ -24,12 +25,12 @@ more certain than it actually is.
 
 - **Full stack, solo:** FastAPI + SQLAlchemy 2.0 + PostgreSQL backend, Next.js 16 / React 19 /
   TypeScript dashboard, Docker Compose deployment (with real healthchecks, not just `Up`),
-  GitHub Actions CI. 192 backend tests, 96% coverage, zero live-network calls in the suite --
+  GitHub Actions CI. 191 backend tests, 96% coverage, zero live-network calls in the suite --
   and a full Playwright end-to-end run against the real app on every meaningful change, not just
   unit tests in isolation.
 - **Real external data, not fixtures.** Live discovery adapters against Hacker News' "Who is
-  Hiring" API, YC's public company directory, and a public GitHub new-grad tracker -- no login,
-  no API key, no scraping of anything that says no: checked a candidate source's `robots.txt`
+  Hiring" API and YC's public company directory -- both startup-specific sources, no login, no
+  API key, no scraping of anything that says no: checked a candidate source's `robots.txt`
   before writing an adapter for it, and didn't build one when it disallowed the exact pages
   needed (see the [Roadmap](#roadmap)) rather than building it anyway.
 - **An architecture built around not hallucinating.** Every LLM call returns a validated Pydantic
@@ -75,8 +76,8 @@ startup search -- sortable by fit, location, or visa-sponsorship signal.*
 ```mermaid
 flowchart LR
     A[Resume upload] --> B["Structured, evidence-verified<br/>candidate profile"]
-    B --> C["Discovery<br/>(HN · YC · GitHub — live)"]
-    C --> D["Deterministic fit scoring<br/>(7 components, explainable)"]
+    B --> C["Discovery<br/>(HN · YC — live, startups only)"]
+    C --> D["Deterministic fit scoring<br/>(7 components, explainable,<br/>automatic on discovery)"]
     D --> E["Company research<br/>FACT vs INFERENCE"]
     E --> F[Contact identification]
     F --> G[Drafted outreach]
@@ -85,15 +86,15 @@ flowchart LR
     style H fill:#2d5,stroke:#1a3,color:#000
 ```
 
-Two independently configured **search profiles** run this same pipeline out of the box:
+Startup-only, by design: the **`startup_outreach`** search profile -- seed-Series B NYC
+startups, small teams, outreach enabled -- is the only one seeded, and every discovery source
+(HN's "Who is Hiring" thread, YC's public directory) is itself startup-focused. An earlier
+`new_grad_2027` profile cast a "wide net across company sizes" (i.e. including large, non-startup
+employers) and has been removed entirely -- see the [Roadmap](#roadmap).
 
-- **`startup_outreach`** -- seed-Series B NYC startups, small teams, outreach enabled: research,
-  contact identification, and drafted (human-approved, human-sent) outreach messages all run.
-- **`new_grad_2027`** -- a wide net across company sizes for new-grad 2027 roles (including
-  finance/quant-adjacent ones), tracking-only -- research/contacts/outreach never run for it.
-
-Adding a third profile (different sources, weights, or outreach on/off) is a config row, not a
-new code path -- see `scripts/seed_profiles.py`.
+`search_profiles` stays a real table, not a single hardcoded config, so a second *startup*-focused
+profile (a different stage or location cut, say) is still just a config row away, not a new code
+path -- see `scripts/seed_profiles.py`.
 
 ## What's here
 
@@ -111,25 +112,25 @@ new code path -- see `scripts/seed_profiles.py`.
 - `search_profiles`: one row per agent (see above), holding its own `config` (role/stage/
   location filters, fit-score weight overrides) and `outreach_enabled` flag.
 - Discovery adapters (`services/discovery/`), real and network-verified against live data, all
-  needing no login/API key and entirely deterministic (regex/HTML/JSON parsing, no LLM call):
-  `HNWhoIsHiringSource` (HN's public "who is hiring" thread) and `YCDirectorySource` (YC's
-  public company directory dataset) for `startup_outreach`; `GitHubNewGradListSource` (a public
-  new-grad tracker repo's README) for `new_grad_2027`. Two discovery *patterns* exist --
-  `JobBoardSource` (posting-first: HN, GitHub) and `CompanySource` (company-first: YC) -- a
-  profile can run both kinds at once (see `api/routers/discovery.py`). `YCDirectorySource` is
-  deliberately company-only: YC's public dataset has no per-company job postings (only an
-  `isHiring` flag), so `get_jobs()` always returns `[]` rather than fabricating a job URL.
-  Company/job dedup goes through `CompanyJobUpsertService`.
+  needing no login/API key and entirely deterministic (regex/HTML/JSON parsing, no LLM call),
+  both feeding `startup_outreach`: `HNWhoIsHiringSource` (HN's public "who is hiring" thread) and
+  `YCDirectorySource` (YC's public company directory dataset). Two discovery *patterns* exist --
+  `JobBoardSource` (posting-first: HN) and `CompanySource` (company-first: YC) -- a profile can
+  run both kinds at once (see `api/routers/discovery.py`); a startup-focused source that's
+  posting-first (a second `JobBoardSource`) slots in the same way HN did, no new pattern needed.
+  `YCDirectorySource` is deliberately company-only: YC's public dataset has no per-company job
+  postings (only an `isHiring` flag), so `get_jobs()` always returns `[]` rather than fabricating
+  a job URL. Company/job dedup goes through `CompanyJobUpsertService`.
 - A deterministic, explainable `FitScorer` (`services/scoring/`) -- seven independently
   unit-testable components (technical/role/AI-data/experience/stage/location/domain match),
   weighted-summed into a 0-100 score with a tier and human-readable strengths/gaps. No LLM call.
   Never hard-rejects for a job asking slightly more experience than the candidate has; a missing
   personal connection is neutral, never scored as a weakness. `technical_match` falls back to a
   word-boundary scan of the job title/description for the candidate's own skill names when a
-  source has no structured `technologies` list (e.g. `GitHubNewGradListSource`, which only ever
-  captures Company/Role/Location/Link/Date) -- found via live data that a flat neutral score for
-  every such job, regardless of what it actually was, was producing a wall of identical overall
-  scores across hundreds of postings. `services/scoring/service.py`'s `score_if_unscored` is
+  source has no structured `technologies` list -- found via live data (against a since-removed
+  source that was especially sparse on structured fields) that a flat neutral score for every
+  such job, regardless of what it actually was, was producing a wall of identical overall scores
+  across hundreds of postings. `services/scoring/service.py`'s `score_if_unscored` is
   wired directly into the discovery runner, so every newly discovered job is scored the moment
   it's found -- no separate step, no per-job "Score" click required to see a result. Never
   re-scores an application that already has one (a manual re-score isn't silently clobbered by
@@ -169,7 +170,7 @@ new code path -- see `scripts/seed_profiles.py`.
   deterministic keyword scan (same philosophy as `domain_connections.py` -- a fixed phrase list,
   never an LLM guess) for whether a posting mentions sponsorship either way. Scans the listing
   text already on file first; only fetches the live posting page when there's nothing there to
-  search (e.g. `GitHubNewGradListSource` jobs, which never have a description). `POST
+  search (a job discovered with no description at all). `POST
   /api/v1/jobs/{id}/check-visa-sponsorship` for one job at a time (the dashboard's button);
   `scripts/check_visa_sponsorship.py` to run it across every job under a profile. Always a lead
   to verify on the real posting -- stored with the literal matched phrase as evidence, never
@@ -226,7 +227,7 @@ npm run dev
 ```
 
 Now at `http://localhost:3000` -- open it and follow the onboarding flow (create a candidate,
-optionally upload a resume, create the two default search profiles, run discovery). See
+optionally upload a resume, create the default search profile, run discovery). See
 `frontend/README.md` for details, including the Playwright end-to-end smoke test. Everything
 below this point also works entirely via `curl`/`/docs` if you'd rather skip the UI.
 
@@ -244,7 +245,7 @@ CAND_ID=$(curl -s -X POST http://localhost:8000/api/v1/candidates \
 curl -s -X POST http://localhost:8000/api/v1/candidates/$CAND_ID/resume \
   -F "file=@/path/to/resume.pdf;type=application/pdf"
 
-# 2. Seed the two search profiles for that candidate (idempotent, safe to re-run)
+# 2. Seed the default search profile for that candidate (idempotent, safe to re-run)
 .venv/bin/python scripts/seed_profiles.py --candidate-id $CAND_ID
 
 # 3. List the profiles to get their ids
@@ -375,9 +376,9 @@ docker compose exec db psql -U recruiting_agent -d recruiting_agent -c "CREATE D
 `scripts/evaluate.py` is a different kind of check than `pytest`: not exact-equality assertions,
 but a repeatable report on (1) `FitScorer` run end-to-end over a small golden set of realistic
 (candidate, job, company, profile) cases -- each chosen to exercise one documented scoring
-decision (extra experience doesn't cliff to zero, a personal-connection hit moves the score,
-`new_grad_2027`'s zeroed stage weight actually zeroes it out) -- PASS/FAIL against an expected
-tier range; and (2) the LLM-driven agents' actual output (company research, outreach drafts)
+decision (extra experience doesn't cliff to zero, a personal-connection hit moves the score, a
+profile that zeroes its stage weight actually gets zero stage penalty) -- PASS/FAIL against an
+expected tier range; and (2) the LLM-driven agents' actual output (company research, outreach drafts)
 printed for a human to read and judge, since there's no boolean to assert a real model's prose
 against. Standalone -- no database, no HTTP server:
 
@@ -490,7 +491,7 @@ frontend in a real browser against it with zero console errors.
   open: a Wellfound `CompanySource` adapter -- checked, not built: its `robots.txt` explicitly
   disallows `/search` and every query-filtered job-listing URL (the only way to browse startup
   jobs there), so it fails this project's own no-scraping-what's-disallowed bar the same way
-  YC/HN/GitHub had to clear it first. A specific VC-portfolio page could still work as a
+  YC/HN had to clear it first. A specific VC-portfolio page could still work as a
   `CompanySource` (YC's own public directory JSON is the existing proof this pattern works when
   a source actually publishes one) but needs picking one real source and checking *its* terms
   individually -- not a blanket "VC portfolios" adapter.
@@ -511,6 +512,14 @@ frontend in a real browser against it with zero console errors.
   `scripts/batch_score.py` for scoring hundreds of newly-discovered jobs in one pass; automatic
   scoring wired directly into discovery (`score_if_unscored`) so a fit score is there the moment
   a job is found, no per-job "Score" click needed.
+- **Startup-only, by product decision (2026-08):** removed the `new_grad_2027` search profile
+  and its `GitHubNewGradListSource` discovery adapter entirely -- not just unregistered, deleted
+  -- along with every reference to it in code, comments, and tests. That profile cast a
+  deliberately wide net "across company sizes," i.e. including large, non-startup employers; this
+  app is scoped to startup outreach specifically, so that content doesn't belong in it. The
+  `search_profiles` abstraction itself stays (a second *startup*-focused profile is still just a
+  config row, see `scripts/seed_profiles.py`), only the one profile that pointed outside startups
+  is gone.
 
 ## About the Author
 

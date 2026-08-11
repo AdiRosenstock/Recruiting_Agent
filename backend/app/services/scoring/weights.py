@@ -1,7 +1,8 @@
 """Configurable fit-score weights. Defaults match the original spec; a profile's
-`config.weights` (see schemas/search_profile.py) overrides individual components -- e.g. the
-`new_grad_2027` profile sets `stage: 0.0` and redistributes it into `role`/`experience`, done
-entirely in that profile's seeded config, not in code (see scripts/seed_profiles.py).
+`config.weights` (see schemas/search_profile.py) overrides individual components -- e.g. a
+profile that shouldn't care about funding stage at all could set `stage: 0.0` and redistribute
+it elsewhere, done entirely in that profile's seeded config, not in code (see
+scripts/seed_profiles.py).
 """
 
 from typing import Any

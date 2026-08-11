@@ -16,7 +16,7 @@ def _create_profile(client: TestClient, candidate_id: str, *, outreach_enabled: 
         "/api/v1/search-profiles",
         json={
             "candidate_id": candidate_id,
-            "profile_key": "startup_outreach" if outreach_enabled else "new_grad_2027",
+            "profile_key": "startup_outreach" if outreach_enabled else "tracking_only",
             "display_name": "Test Profile",
             "outreach_enabled": outreach_enabled,
             "config": {"role_filters": ["data engineer"], "location_filters": ["new york"]},

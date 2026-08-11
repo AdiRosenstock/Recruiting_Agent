@@ -1,6 +1,6 @@
 """A company, deduplicated across however many sources/profiles discover it. Profile-agnostic
-by design -- the same company can surface under both `startup_outreach` and `new_grad_2027`
-(scored differently per profile via `fit_scores.profile_id`)."""
+by design -- the same company can surface under more than one search profile at once (scored
+differently per profile via `fit_scores.profile_id`)."""
 
 from datetime import datetime
 from typing import TYPE_CHECKING
