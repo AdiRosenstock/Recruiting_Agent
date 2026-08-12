@@ -19,6 +19,13 @@ _CASES: list[tuple[str, str | None]] = [
     ("No, we do not offer visa sponsorship for this position.", "likely_no_sponsorship"),
     # Must not false-positive just because "OPT"/"eligible" appear near an unrelated negation.
     ("International students on OPT are not eligible.", None),
+    # Found live (Legion Intelligence, HN "Who is hiring?"): the noun-phrase form wasn't caught
+    # by the "must be a US citizen" verb-form pattern.
+    (
+        "US citizenship or a greencard is required for this role.",
+        "likely_no_sponsorship",
+    ),
+    ("US citizenship is required for this position.", "likely_no_sponsorship"),
 ]
 
 

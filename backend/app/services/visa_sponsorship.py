@@ -31,6 +31,19 @@ _NO_SPONSORSHIP_PATTERNS: tuple[re.Pattern[str], ...] = (
         r"must be authorized to work (?:in the (?:u\.?s\.?|united states) )?without sponsorship",
         re.IGNORECASE,
     ),
+    # Found live: "US citizenship or a greencard is required for this role" -- the noun form
+    # ("citizenship ... is required") wasn't caught by the "must be a US citizen" verb-form
+    # pattern above, a real posting slipped through as "no signal" when it's actually a hard
+    # disqualifier for a candidate who needs sponsorship.
+    re.compile(
+        r"(?:u\.?s\.?|united states) citizenship"
+        r"(?: or (?:a )?(?:green ?card|permanent residency))?"
+        r"\s*(?:is\s+)?required",
+        re.IGNORECASE,
+    ),
+    re.compile(
+        r"(?:u\.?s\.?|united states) citizens?(?:/| or )green ?card holders? only", re.IGNORECASE
+    ),
 )
 
 _SPONSORSHIP_AVAILABLE_PATTERNS: tuple[re.Pattern[str], ...] = (
