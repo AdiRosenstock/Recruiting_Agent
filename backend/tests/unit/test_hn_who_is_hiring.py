@@ -87,6 +87,30 @@ def test_finds_company_url_in_free_text_body_when_header_has_none() -> None:
     assert jobs[0].company.website == "https://ojin.ai"
 
 
+def test_body_url_is_normalized_to_root_domain() -> None:
+    """Found live: a company's own domain still showed up as a job-posting-specific deep link
+    ("lokker.com/careers/openings/senior-backend-engineer-...") that 404s once that individual
+    posting is taken down -- the root domain reliably still resolves."""
+    search_json = {"hits": [{"objectID": "222", "title": "Ask HN: Who is hiring? (August 2026)"}]}
+    item_json = {
+        "children": [
+            {
+                "id": 999,
+                "created_at": "2026-08-03T15:00:59.000Z",
+                "text": (
+                    "Acme | Backend Engineer | Remote<p>We build things."
+                    "<p>Apply: https://acme.example/careers/openings/backend-engineer-123?ref=hn"
+                ),
+            }
+        ]
+    }
+    client = _make_client(search_json, item_json)
+    jobs = HNWhoIsHiringSource(client=client).search_jobs(DiscoveryQuery())
+
+    assert len(jobs) == 1
+    assert jobs[0].company.website == "https://acme.example"
+
+
 def test_ignores_ats_and_social_urls_in_free_text_body() -> None:
     search_json = {"hits": [{"objectID": "222", "title": "Ask HN: Who is hiring? (August 2026)"}]}
     item_json = {
@@ -108,6 +132,74 @@ def test_ignores_ats_and_social_urls_in_free_text_body() -> None:
 
     assert len(jobs) == 1
     assert jobs[0].company.website == "https://acme.example"
+
+
+def test_ignores_url_shorteners_in_free_text_body() -> None:
+    """Found live: a real posting whose actual application link was correctly excluded
+    (ashbyhq.com), but whose "or reach out directly: https://bit.ly/juliaLN" line wasn't --
+    a shortener can point anywhere, including a person's LinkedIn, never trustworthy as "the
+    company site" from the URL text alone."""
+    search_json = {"hits": [{"objectID": "222", "title": "Ask HN: Who is hiring? (August 2026)"}]}
+    item_json = {
+        "children": [
+            {
+                "id": 999,
+                "created_at": "2026-08-03T15:00:59.000Z",
+                "text": (
+                    "Acme | Backend Engineer | Remote<p>We build things."
+                    "<p>Apply: https://jobs.ashbyhq.com/acme"
+                    "<p>Or reach out directly: https://bit.ly/janeLN"
+                ),
+            }
+        ]
+    }
+    client = _make_client(search_json, item_json)
+    jobs = HNWhoIsHiringSource(client=client).search_jobs(DiscoveryQuery())
+
+    assert len(jobs) == 1
+    assert jobs[0].company.website is None
+
+
+def test_falls_back_to_a_hiring_email_domain_when_no_url_anywhere() -> None:
+    """Found live: a real posting with no URL in the header or body at all, only an "apply:
+    hiring@interviewresources.app" contact line -- the search fallback guessed a US federal
+    government interview-prep portal instead of the actual startup."""
+    search_json = {"hits": [{"objectID": "222", "title": "Ask HN: Who is hiring? (August 2026)"}]}
+    item_json = {
+        "children": [
+            {
+                "id": 999,
+                "created_at": "2026-08-03T15:00:59.000Z",
+                "text": (
+                    "Acme | Backend Engineer | Remote<p>We build things."
+                    "<p>Apply: hiring@acme.example with your resume."
+                ),
+            }
+        ]
+    }
+    client = _make_client(search_json, item_json)
+    jobs = HNWhoIsHiringSource(client=client).search_jobs(DiscoveryQuery())
+
+    assert len(jobs) == 1
+    assert jobs[0].company.website == "https://acme.example"
+
+
+def test_ignores_personal_email_domains() -> None:
+    search_json = {"hits": [{"objectID": "222", "title": "Ask HN: Who is hiring? (August 2026)"}]}
+    item_json = {
+        "children": [
+            {
+                "id": 999,
+                "created_at": "2026-08-03T15:00:59.000Z",
+                "text": "Acme | Backend Engineer | Remote<p>Reach out: jane@gmail.com",
+            }
+        ]
+    }
+    client = _make_client(search_json, item_json)
+    jobs = HNWhoIsHiringSource(client=client).search_jobs(DiscoveryQuery())
+
+    assert len(jobs) == 1
+    assert jobs[0].company.website is None
 
 
 def test_skips_comment_with_no_pipe_delimited_fields() -> None:

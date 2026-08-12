@@ -28,14 +28,18 @@ _URL_RE = re.compile(r"https?://\S+")
 _DESCRIPTION_MAX_CHARS = 2000
 
 # Domains that show up constantly in HN hiring posts but are never themselves the company's own
-# site -- ATS/application-flow platforms, social/aggregators, generic doc/form tools. Found live:
-# a posting with no URL in its structured header line but a real "read more: https://ojin.ai" in
-# the free-text body used to fall through to a (wrong) search-engine guess at research time
-# instead of just using the URL the company itself gave. Extending this list only ever makes the
-# filter stricter -- a wrong ban is a missed website, not a wrong one (same tradeoff as
-# services/research/website_lookup.py's _EXCLUDED_DOMAINS, which this deliberately overlaps
-# with but isn't merged with: that list is tuned for "which search result is the real site,"
-# this one for "which URL in a job posting's own body is the real site").
+# site -- ATS/application-flow platforms, social/aggregators, generic doc/form tools, and URL
+# shorteners (which can point *anywhere*, including a recruiter's personal LinkedIn -- found
+# live: a posting whose real application link was correctly excluded (ashbyhq.com) but whose
+# "or reach out directly: https://bit.ly/juliaLN" line wasn't, and got picked as "the company
+# site" instead). Found live, separately: a posting with no URL in its structured header line
+# but a real "read more: https://ojin.ai" in the free-text body used to fall through to a (wrong)
+# search-engine guess at research time instead of just using the URL the company itself gave.
+# Extending this list only ever makes the filter stricter -- a wrong ban is a missed website, not
+# a wrong one (same tradeoff as services/research/website_lookup.py's _EXCLUDED_DOMAINS, which
+# this deliberately overlaps with but isn't merged with: that list is tuned for "which search
+# result is the real site," this one for "which URL in a job posting's own body is the real
+# site").
 _NON_COMPANY_URL_DOMAINS = frozenset(
     {
         "news.ycombinator.com",
@@ -62,6 +66,17 @@ _NON_COMPANY_URL_DOMAINS = frozenset(
         "forms.gle",
         "youtube.com",
         "github.com",
+        # URL shorteners -- destination is unknown without following the redirect, so never
+        # trustworthy as "the company site" from the URL alone.
+        "bit.ly",
+        "tinyurl.com",
+        "t.co",
+        "lnkd.in",
+        "rebrand.ly",
+        "buff.ly",
+        "ow.ly",
+        "is.gd",
+        "goo.gl",
     }
 )
 
@@ -76,12 +91,49 @@ def _is_non_company_domain(domain: str) -> bool:
 def _find_company_url_in_text(text: str) -> str | None:
     """First URL in the free-text body whose domain isn't an ATS/social/aggregator platform --
     conventionally the company's own site (posts commonly end with "more info: <url>" or "apply
-    at <url>"), used only when the structured header line didn't already have one."""
+    at <url>"), used only when the structured header line didn't already have one. Normalized
+    to just scheme+domain, dropping any path -- found live that a company's own domain can still
+    show up as a specific, job-posting-scoped deep link ("lokker.com/careers/openings/senior-
+    backend-engineer-...") that 404s once that individual posting is taken down or moves, while
+    the root domain reliably still resolves to the company's actual site."""
     for match in _URL_RE.finditer(text):
         url = match.group(0).rstrip(").,/")
-        domain = urlparse(url).netloc.lower().removeprefix("www.")
+        parsed = urlparse(url)
+        domain = parsed.netloc.lower().removeprefix("www.")
         if domain and not _is_non_company_domain(domain):
-            return url
+            return f"{parsed.scheme}://{parsed.netloc}"
+    return None
+
+
+# Personal-email providers -- a "contact: jane@gmail.com" line gives no company-domain signal at
+# all, unlike "contact: hiring@acme.com".
+_PERSONAL_EMAIL_DOMAINS = frozenset(
+    {
+        "gmail.com",
+        "yahoo.com",
+        "outlook.com",
+        "hotmail.com",
+        "icloud.com",
+        "proton.me",
+        "protonmail.com",
+        "aol.com",
+        "live.com",
+    }
+)
+_EMAIL_RE = re.compile(r"[\w.+-]+@([A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)+)")
+
+
+def _find_company_url_from_email(text: str) -> str | None:
+    """A hiring/contact email's domain is a strong, self-reported company-website signal too
+    (found live: a posting with no header URL and no other body URL at all, but a real
+    "apply: hiring@interviewresources.app" -- the fallback search guessed a US federal
+    government interview-prep portal instead of the actual startup). Checked after
+    _find_company_url_in_text, not instead of it -- an explicit URL is still a stronger signal
+    than inferring one from an email domain."""
+    for match in _EMAIL_RE.finditer(text):
+        domain = match.group(1).lower()
+        if domain not in _PERSONAL_EMAIL_DOMAINS and not _is_non_company_domain(domain):
+            return f"https://{domain}"
     return None
 
 
@@ -149,6 +201,11 @@ class HNWhoIsHiringSource:
             # search-engine guess at research time got the wrong company for a post that had
             # its own real URL sitting in the body the whole time).
             website = _find_company_url_in_text(stripped)
+        if website is None:
+            # Still nothing -- a contact email's domain is a weaker but still self-reported
+            # signal, worth trying before falling all the way back to search (see
+            # _find_company_url_from_email).
+            website = _find_company_url_from_email(stripped)
 
         rest = [p for p in parts[1:] if not _URL_RE.match(p)]
         role = rest[0] if rest else "Role not specified (see description)"
