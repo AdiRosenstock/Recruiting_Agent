@@ -18,6 +18,22 @@ class CompanyCreate(BaseModel):
     technologies: list[str] = Field(default_factory=list)
 
 
+class CompanyUpdate(BaseModel):
+    """Enrichment fields only -- `name`/`website` (identity, used for dedup) aren't editable
+    here. All optional so a caller (a research step, or a human backfilling what search turned
+    up) can set just the one field it actually found evidence for."""
+
+    location: str | None = None
+    industry: str | None = None
+    description: str | None = None
+    founders: list[str] | None = None
+    funding_stage: str | None = None
+    amount_raised_usd: int | None = None
+    investors: list[str] | None = None
+    employee_count: int | None = None
+    technologies: list[str] | None = None
+
+
 class CompanyRead(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 

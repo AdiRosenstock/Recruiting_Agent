@@ -59,3 +59,23 @@ def test_add_job_to_unknown_company_404s(client: TestClient) -> None:
         json={"title": "Engineer", "job_url": "https://example.com/j/1"},
     )
     assert response.status_code == 404
+
+
+def test_update_company_sets_only_the_provided_fields(client: TestClient) -> None:
+    company = client.post(
+        "/api/v1/companies", json={"name": "Acme", "location": "New York, NY"}
+    ).json()
+
+    response = client.patch(f"/api/v1/companies/{company['id']}", json={"employee_count": 1300})
+    assert response.status_code == 200, response.text
+    updated = response.json()
+    assert updated["employee_count"] == 1300
+    # Untouched fields survive the partial update.
+    assert updated["location"] == "New York, NY"
+    assert updated["name"] == "Acme"
+
+
+def test_update_unknown_company_404s(client: TestClient) -> None:
+    fake_id = "00000000-0000-0000-0000-000000000000"
+    response = client.patch(f"/api/v1/companies/{fake_id}", json={"employee_count": 10})
+    assert response.status_code == 404

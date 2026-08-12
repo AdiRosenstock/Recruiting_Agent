@@ -6,7 +6,7 @@ from sqlalchemy.orm import Session
 from app.db.session import get_db
 from app.models.company import Company
 from app.models.job import Job
-from app.schemas.company import CompanyCreate, CompanyRead
+from app.schemas.company import CompanyCreate, CompanyRead, CompanyUpdate
 from app.schemas.job import JobCreate, JobRead
 from app.services.discovery.upsert import normalize_company_name
 
@@ -38,6 +38,27 @@ def read_company(company_id: uuid.UUID, db: Session = Depends(get_db)) -> Compan
     company = db.get(Company, company_id)
     if company is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Company not found")
+    return CompanyRead.model_validate(company)
+
+
+@router.patch("/{company_id}", response_model=CompanyRead)
+def update_company(
+    company_id: uuid.UUID, payload: CompanyUpdate, db: Session = Depends(get_db)
+) -> CompanyRead:
+    """Backfills enrichment fields found after the company was first discovered -- most
+    importantly `employee_count`, which nothing in the discovery/research pipeline writes yet
+    (found live: every company sat at `employee_count=None`, which silently defaulted every
+    single one to `services/contacts.py`'s "very-early-stage" contact-priority tier -- a public
+    company with 1000+ employees was being ranked identically to a 5-person startup). Only
+    fields actually provided are changed; `None` in the payload just means "not provided," not
+    "clear this field" (see CompanyUpdate's docstring)."""
+    company = db.get(Company, company_id)
+    if company is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Company not found")
+    for field, value in payload.model_dump(exclude_unset=True).items():
+        setattr(company, field, value)
+    db.commit()
+    db.refresh(company)
     return CompanyRead.model_validate(company)
 
 
