@@ -5,7 +5,7 @@
 ![TypeScript](https://img.shields.io/badge/typescript-5-blue)
 ![Next.js](https://img.shields.io/badge/Next.js-16-black)
 ![FastAPI](https://img.shields.io/badge/FastAPI-009688)
-![Tests](https://img.shields.io/badge/backend%20tests-191%20passing-brightgreen)
+![Tests](https://img.shields.io/badge/backend%20tests-205%20passing-brightgreen)
 ![Coverage](https://img.shields.io/badge/coverage-96%25-brightgreen)
 
 A full-stack, agentic **startup** job-search system, designed and built solo: resume in,
@@ -520,6 +520,17 @@ frontend in a real browser against it with zero console errors.
   `search_profiles` abstraction itself stays (a second *startup*-focused profile is still just a
   config row, see `scripts/seed_profiles.py`), only the one profile that pointed outside startups
   is gone.
+- **Live-use fixes, found by actually drafting real outreach (2026-08):** the visa-sponsorship
+  detector was missing the noun-phrase form of a citizenship requirement ("US citizenship ...
+  is required" vs. the verb form "must be a US citizen") -- caught it on a real 87-score match
+  and archived the two applications it newly disqualified. Separately, `employee_count` had
+  never been populated for any of the 172 companies in the DB, so `services/contacts.py`'s
+  very-early-stage-vs-larger-company priority ranking was silently defaulting every company
+  (including public companies) to the tiny-startup tier; added `PATCH /api/v1/companies/{id}`
+  (see above) and backfilled real, sourced counts. Real contacts (name, title, public LinkedIn
+  URL, found via public search, never scraped) were identified and linked for the first several
+  companies with drafted outreach, and those messages were re-personalized to address the actual
+  person by name.
 
 ## About the Author
 
