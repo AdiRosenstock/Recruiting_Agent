@@ -25,7 +25,7 @@ than it actually is.
 
 - **Full stack, solo:** FastAPI + SQLAlchemy 2.0 + PostgreSQL backend, Next.js 16 / React 19 /
   TypeScript dashboard, Docker Compose deployment (with real healthchecks, not just `Up`),
-  GitHub Actions CI. 191 backend tests, 96% coverage, zero live-network calls in the suite --
+  GitHub Actions CI. 205 backend tests, 96% coverage, zero live-network calls in the suite --
   and a full Playwright end-to-end run against the real app on every meaningful change, not just
   unit tests in isolation.
 - **Real external data, not fixtures.** Live discovery adapters against Hacker News' "Who is
