@@ -1,5 +1,6 @@
 # Recruiting Agent
 
+
 [![CI](https://github.com/AdiRosenstock/Recruiting_Agent/actions/workflows/ci.yml/badge.svg)](https://github.com/AdiRosenstock/Recruiting_Agent/actions/workflows/ci.yml)
 ![Python](https://img.shields.io/badge/python-3.12-blue)
 ![TypeScript](https://img.shields.io/badge/typescript-5-blue)
