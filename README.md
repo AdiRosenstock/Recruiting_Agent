@@ -273,6 +273,20 @@ Companies/jobs can also be added manually: `POST /api/v1/companies`, then `POST
 /api/v1/companies/{id}/jobs` -- these aren't scored automatically (there's no discovery run to
 hang the scoring off of), so step 6 is how to score them.
 
+Enrichment fields found after the fact (most importantly `employee_count`, which discovery never
+sets) are backfilled with `PATCH /api/v1/companies/{id}`, partial-update semantics -- only the
+fields you pass are changed:
+
+```bash
+curl -s -X PATCH http://localhost:8000/api/v1/companies/<company-id> \
+  -H "Content-Type: application/json" -d '{"employee_count": 60}'
+```
+
+`employee_count` matters beyond just being a data point: `services/contacts.py`'s priority
+ranking uses it to decide whether founder/CTO (very-early-stage) or an engineering hiring
+manager/recruiter (larger company) is the better first contact -- a company sitting at
+`employee_count=None` is silently treated as very-early-stage either way.
+
 Discovery scores everything it finds automatically, so there's usually nothing to batch-score.
 `scripts/batch_score.py` covers the cases that aren't automatic: manually-added jobs, jobs
 discovered before a resume was on file (discovery skips scoring, not the whole run, when there's
